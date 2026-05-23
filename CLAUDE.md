@@ -7,6 +7,7 @@ Vareva AutoGF adalah aplikasi untuk mengisi Google Forms otomatis dengan AI-gene
 ## Tech Stack
 
 ### Backend (`backend/`)
+<<<<<<< HEAD
 - **Framework**: FastAPI 0.136.1, SQLModel 0.0.38, Pydantic
 - **Config**: Modular `app/config/` (split BaseSettings per domain) + legacy `app/config.py` shim
 - **Schemas**: Custom `CustomModel` with datetime serialization
@@ -27,6 +28,27 @@ Vareva AutoGF adalah aplikasi untuk mengisi Google Forms otomatis dengan AI-gene
 - **Icons**: Lucide React + custom SVG pixel art (PixelDecor)
 - **Fonts**: Press Start 2P (display), VT323 (mono), Space Grotesk (body)
 - **Port**: 5173 (dev, Vite default), proxy ke localhost:8000
+=======
+- **Framework**: FastAPI 0.115, SQLModel, Pydantic
+- **Config**: Modular `app/config/` (split BaseSettings per domain)
+- **Schemas**: Custom `CustomModel` with datetime serialization
+- **Database**: SQLite (gform.db)
+- **HTTP Client**: httpx[http2] untuk fetch Google Forms
+- **AI SDK**: OpenAI SDK (multi-provider support)
+- **Python**: 3.12+
+- **Port**: 8000
+
+### Frontend (`frontend/`)
+- **Framework**: React 19 + Vite + TypeScript
+- **React 19 Features**: Actions (useTransition), ref as prop (no forwardRef)
+- **Custom Hooks**: `useApiAction` with optimistic updates
+- **Styling**: Tailwind CSS v4 with custom `@theme` design tokens
+- **Design System**: Neobrutalism + Pixel Art aesthetic
+- **UI Components**: shadcn/ui (brutalist-styled primitives)
+- **Icons**: Lucide React + custom SVG pixel art (PixelDecor)
+- **Fonts**: Press Start 2P (display), VT323 (mono), Space Grotesk (body)
+- **Port**: 5176 (dev), proxy ke localhost:8000
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 - **Animations**: GPU-accelerated (transform/opacity only), 240fps+ capable
 
 ## Architecture
@@ -64,7 +86,11 @@ Vareva AutoGF adalah aplikasi untuk mengisi Google Forms otomatis dengan AI-gene
 | `Label` | Tiny uppercase tracked text |
 
 ### PixelDecor Components (`components/PixelDecor.tsx`)
+<<<<<<< HEAD
 Pure SVG pixel art icons (no external assets, 8x8 grid based):
+=======
+Pure SVG pixel art icons (no external assets):
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 - `PixelRobot` — Animated mascot
 - `PixelStar`, `PixelHeart`, `PixelCheck`, `PixelCross` — Status icons
 - `PixelBolt`, `PixelSparkle`, `PixelCube`, `PixelArrow` — Decorations
@@ -76,6 +102,7 @@ All step components use **12-column grid** with:
 
 | Component | Layout Features |
 |-----------|-----------------|
+<<<<<<< HEAD
 | `BatchSetupStep` | Form input cards, mode toggle pills, AI provider stack |
 | `LoadingStep` | Pixel robot spinner, phase progress blocks, terminal log |
 | `BatchResultStep` | Chunky stat blocks, expandable iteration cards, success/fail badges, CSV/JSON/Excel export |
@@ -85,6 +112,12 @@ All step components use **12-column grid** with:
 - `ParseStep.tsx` — Standalone parse step (from earlier architecture)
 - `GenerateStep.tsx` — Standalone generate step (from earlier architecture)
 - `StepIndicator.tsx` — Classic step indicator
+=======
+| `BatchSetupStep` | Hero intro, chunky cards, mode toggle pills, AI provider stack |
+| `LoadingStep` | Pixel robot spinner, phase progress blocks, terminal log |
+| `BatchResultStep` | Chunky stat blocks, expandable iteration cards, success/fail badges |
+| `ReviewSubmitStep` | Persona selector pills, editable answer cards, field counter |
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 
 ### Animation Guidelines
 - **Only GPU properties**: `transform`, `opacity`
@@ -96,19 +129,29 @@ All step components use **12-column grid** with:
 
 1. **Gemini** (gemini-2.5-flash-lite) — 1500 req/day
 2. **Groq** (llama-3.3-70b-versatile) — fallback 1
+<<<<<<< HEAD
 3. **Cerebras** (llama-3.3-70b) — fallback 2
 4. **OpenRouter** (poolside/laguna-xs.2:free) — fallback 3, with server-side model fallback via `extra_body.models`
+=======
+3. **Cerebras** (qwen-3-235b-a22b-instruct-2507) — fallback 2
+4. **OpenRouter** (poolside/laguna-xs.2:free) — fallback 3
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 5. **Static fallback** — always last resort
 
 ## Key Backend Components
 
 ### 1. Parser (`app/core/parser.py`)
+<<<<<<< HEAD
 - Parse Google Form dari `FB_PUBLIC_LOAD_DATA_` JavaScript variable (regex + json.loads)
+=======
+- Parse Google Form dari `FB_PUBLIC_LOAD_DATA_` JavaScript variable
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 - Extract: fields, options, page breaks, form metadata
 - Detect "Other" option (flag=1 + empty string) → label "Yang lain:"
 - Support multi-page forms (page breaks type 8)
 
 ### 2. Generator (`app/core/generator.py`)
+<<<<<<< HEAD
 - `AIProvider` dataclass + `_make_providers()` for provider chain
 - Generate personas Indonesia realistis (nama, umur, gender, kota, pekerjaan, hobi)
 - Build compact prompts dari FormSchema untuk menekan token usage tanpa menghapus fitur
@@ -126,6 +169,13 @@ All step components use **12-column grid** with:
 - `validate_persona_quality()` flags non-whitelisted occupations, unrealistic ages, and gender-confusing names
 - Persona quality issues are currently warning-level, not blocking/regenerating by default
 
+=======
+- Generate personas Indonesia realistis (nama, umur, gender, kota, pekerjaan, hobi)
+- Build prompts dari FormSchema untuk AI
+- Validate answers against form options
+- Retry logic dengan fallback providers
+
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ### 3. Submitter (`app/core/submitter.py`)
 - Build payload x-www-form-urlencoded
 - Handle "Other" option: convert "Yang lain:" → `__other_option__` + `.other_option_response`
@@ -133,6 +183,7 @@ All step components use **12-column grid** with:
 - Resolve short URLs (forms.gle → docs.google.com)
 
 ### 4. Indonesian Names (`app/data/indonesian_names.py`)
+<<<<<<< HEAD
 - Real name bank: 300+ male names, 300+ female names, 200+ neutral surnames
 - Gender-matched name generation via `get_random_names()`
 - Weighted toward common/natural Indonesian names, while regional names remain possible but rarer
@@ -153,10 +204,25 @@ generated_persona_logs  — generated persona history per form_url for avoiding 
 Models defined in `app/models/` with exports from `__init__.py`:
 - `Persona`, `FormSession`, `FormSchemaRecord`, `SubmissionLog`, `GeneratedPersonaLog`
 
+=======
+- Real name bank: 250+ male names, 200+ female names, 50+ surnames
+- Gender-matched name generation
+
+## Database Schema (SQLite)
+
+```sql
+personas — AI-generated persona profiles
+sessions — batch submission sessions
+form_schemas — cached parsed form structures
+submission_logs — submission attempt logs
+```
+
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+<<<<<<< HEAD
 | `/` | GET | Health check |
 | `/api/parse/` | POST | Parse Google Form URL → schema |
 | `/api/generate/` | POST | Generate personas + answers |
@@ -165,6 +231,13 @@ Models defined in `app/models/` with exports from `__init__.py`:
 | `/api/batch/run-stream` | POST | Dedicated Server-Sent Events endpoint for live batch logs |
 | `/api/personas/` | POST/GET | Create / List personas |
 | `/api/personas/{id}` | GET/PATCH/DELETE | CRUD persona |
+=======
+| `/api/parse` | POST | Parse Google Form URL → schema |
+| `/api/generate` | POST | Generate personas + answers |
+| `/api/submit` | POST | Submit single form |
+| `/api/batch/run` | POST | Parse + Generate + Submit pipeline |
+| `/api/personas` | CRUD | Manage saved personas |
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 
 ## Special Handling: "Other" / "Yang lain" Option
 
@@ -189,6 +262,7 @@ Google Forms handle "Other" dengan format khusus:
 **Validation skips:**
 - Keys ending with `.other_option_response`
 
+<<<<<<< HEAD
 ## Quality & History Flow
 
 For batch generation, backend now keeps quality/history context per `form_url`:
@@ -216,6 +290,14 @@ App state machine in `App.tsx` (useState based):
 setup → loading → review (if reviewMode) → submit from review
 setup → loading → result (if autoMode)
 ```
+=======
+## Frontend Flow
+
+1. **BatchSetupStep** → Input URL, jumlah persona, mode (langsung/review)
+2. **LoadingStep** → Parse form → Generate personas/answers
+3. **ReviewSubmitStep** (review mode) → Edit answers per persona → Submit
+4. **BatchResultStep** (direct mode) → Show submit results
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 
 ## Environment Variables
 
@@ -230,11 +312,15 @@ OPENROUTER_API_KEY=your_key
 # Optional
 DATABASE_URL=sqlite:///gform.db
 LLM_MAX_RETRIES=3
+<<<<<<< HEAD
 DEBUG=false
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ```
 
 ## Running Dev
 
+<<<<<<< HEAD
 ### Recommended: one-command dev runner
 
 ```powershell
@@ -260,6 +346,19 @@ npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 
 Vite uses strict port `5173`; if the port is already used, stop the old frontend process instead of letting Vite switch to `5174`.
 
+=======
+```bash
+# Terminal 1 — Backend
+cd backend
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload
+
+# Terminal 2 — Frontend
+cd frontend
+npm run dev
+```
+
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ## Common Issues & Fixes
 
 | Issue | Cause | Fix |
@@ -268,6 +367,7 @@ Vite uses strict port `5173`; if the port is already used, stop the old frontend
 | Blank submissions | page_count mismatch | Always pass correct page_count |
 | 500 on forms.gle | Short URL not resolved | Resolve di submitter sebelum build URL |
 | Gemini rate limit | Quota exceeded | Auto fallback ke Groq/Cerebras/OpenRouter |
+<<<<<<< HEAD
 | Loading stuck at initializing/generate | stale frontend/backend process or SSE route mismatch | Stop old dev servers, run `./dev.ps1`, use `/api/batch/run-stream` |
 | AI provider log not showing | frontend hitting JSON endpoint or stale Vite port | Use strict port `5173` and dedicated SSE stream endpoint |
 | Vite opens `5174` | `5173` already occupied by old frontend | Stop old process; config uses `strictPort` to expose this early |
@@ -377,13 +477,56 @@ v2/
 │   │   ├── index.css               # Neobrutalism design system + animations
 │   │   ├── components/
 │   │   │   ├── PixelDecor.tsx      # SVG pixel art icons (8x8 grid)
+=======
+
+## Testing Commands
+
+```bash
+# Test parse
+curl -X POST http://localhost:8000/api/parse \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://docs.google.com/forms/d/e/.../viewform"}'
+
+# Test generate
+curl -X POST http://localhost:8000/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"form_url": "...", "count": 2}'
+```
+
+## Project Structure
+
+```
+v1/
+├── backend/
+│   ├── app/
+│   │   ├── core/
+│   │   │   ├── parser.py           # Google Form parsing
+│   │   │   ├── generator.py        # AI answer generation
+│   │   │   ├── submitter.py        # Form submission
+│   │   │   └── batch.py            # Batch orchestration
+│   │   ├── api/
+│   │   │   └── routes/             # FastAPI endpoints
+│   │   ├── schemas/                # Pydantic models
+│   │   └── data/
+│   │       └── indonesian_names.py
+│   └── .env                        # Environment variables
+├── frontend/
+│   ├── index.html                  # Font preloads, viewport meta
+│   ├── src/
+│   │   ├── index.css               # Neobrutalism design system + animations
+│   │   ├── components/
+│   │   │   ├── PixelDecor.tsx      # SVG pixel art icons
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 │   │   │   ├── BatchSetupStep.tsx  # Setup form (mobile/desktop layouts)
 │   │   │   ├── LoadingStep.tsx     # Pixel robot loader + phases
 │   │   │   ├── BatchResultStep.tsx # Chunky stats + iteration cards
 │   │   │   ├── ReviewSubmitStep.tsx# Review + edit + submit
+<<<<<<< HEAD
 │   │   │   ├── ParseStep.tsx       # (⚠️ unused, legacy)
 │   │   │   ├── GenerateStep.tsx    # (⚠️ unused, legacy)
 │   │   │   ├── StepIndicator.tsx   # (⚠️ unused, legacy)
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 │   │   │   └── ui/                 # Brutalist-styled primitives
 │   │   │       ├── button.tsx
 │   │   │       ├── card.tsx
@@ -391,6 +534,7 @@ v2/
 │   │   │       ├── textarea.tsx
 │   │   │       ├── badge.tsx
 │   │   │       └── label.tsx
+<<<<<<< HEAD
 │   │   ├── hooks/
 │   │   │   ├── index.ts            # Re-exports hooks
 │   │   │   └── useApiAction.ts     # useApiAction, useOptimisticValue, useBatchActions
@@ -410,6 +554,13 @@ v2/
 ├── dev.ps1                         # Starts backend reload + frontend hot reload
 ├── start_backend.ps1               # (⚠️ points to v1 path, needs update)
 └── .gitignore
+=======
+│   │   ├── App.tsx                 # Main app with header/footer
+│   │   └── lib/api.ts              # API client
+│   └── package.json
+├── CLAUDE.md                       # This file
+└── PLAN.md                         # Project roadmap
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ```
 
 ## Backend Architecture
@@ -425,8 +576,11 @@ app/config/
 └── app.py             # AppConfig: App metadata + delegates to domain configs
 ```
 
+<<<<<<< HEAD
 **Note:** `app/config.py` (flat file) coexists as a legacy backward-compat shim that re-exports `AppConfig` as `Settings`.
 
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 **Benefits:**
 - Domain-specific settings isolated per module
 - Easy to add new config domains
@@ -446,11 +600,14 @@ class PersonaRead(CustomModel):
     created_at: datetime  # Auto-serialized to "2024-01-15T10:30:00+0000"
 ```
 
+<<<<<<< HEAD
 ### Database Layer (`app/db.py`)
 - `get_engine()` — creates SQLite engine from settings
 - `create_db_and_tables()` — auto-creates tables on app startup (lifespan)
 - `SessionDep` — FastAPI `Annotated[Session, Depends(get_session)]` for route injection
 
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ## Frontend React 19 Features
 
 ### Actions Pattern (`src/hooks/useApiAction.ts`)
@@ -464,8 +621,11 @@ const { state, execute, isPending } = useApiAction(parseFormAction)
 startTransition(() => execute(url))
 ```
 
+<<<<<<< HEAD
 **Note:** Hooks are defined and exported, but `App.tsx` currently calls `api.*` directly rather than through hooks.
 
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ### Custom Hooks
 
 - `useApiAction<T>`: Async actions with pending/error states
@@ -501,10 +661,13 @@ Automatically reads parent form status (future React 19 enhancement):
 ### Backend
 - Type hints wajib, docstrings untuk public functions
 - Error handling dengan context logging
+<<<<<<< HEAD
 - Keep persona/answer quality logic in `app/core/quality.py` so prompts and hard checks stay consistent
 - Keep AI prompts compact: summarize schema/history/persona context instead of sending verbose repeated text
 - For production token efficiency, do not retry AI only because answers are similar; use local similarity warnings instead
 - For batch changes, preserve per-form history behavior: load by `form_url`, avoid blocked names, and append accepted answers to in-memory history during the same run
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 
 ### Frontend
 - **Components**: Functional components, hooks for state
@@ -526,12 +689,19 @@ Automatically reads parent form status (future React 19 enhancement):
 ## When Making Changes
 
 1. **Parser changes** → Test dengan form multi-page + Other option
+<<<<<<< HEAD
 2. **Generator changes** → Validate output format, check fallback chain, compact prompt token usage, local similarity warnings, and persona quality warnings
 3. **Submitter changes** → Test dengan short URL, multi-page, Other option
 4. **Batch/SSE changes** → Test `/api/batch/run-stream`, provider events, anti-buffering headers, and per-form history persistence
 5. **Frontend changes** → Check responsive (mobile + desktop), loading states, error UI, GPU animations
 6. **Export/review changes** → Test CSV/JSON/Excel downloads and warning highlights in review mode
 7. **Design system changes** → Verify static class names work with Tailwind JIT, test all color variants
+=======
+2. **Generator changes** → Validate output format, check fallback chain
+3. **Submitter changes** → Test dengan short URL, multi-page, Other option
+4. **Frontend changes** → Check responsive (mobile + desktop), loading states, error UI, GPU animations
+5. **Design system changes** → Verify static class names work with Tailwind JIT, test all color variants
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 
 ## Security Notes
 
@@ -539,4 +709,7 @@ Automatically reads parent form status (future React 19 enhancement):
 - Form URLs user-provided, always validate
 - No PII logging (names, answers) kecuali debug level
 - Rate limiting handled by providers, fallback protects
+<<<<<<< HEAD
 - CORS allow_origins=["*"] — tighten for production
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
