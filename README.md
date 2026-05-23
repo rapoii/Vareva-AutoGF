@@ -2,6 +2,7 @@
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 <p align="center">
   <strong>AI-powered Google Forms automation with realistic Indonesian personas, review mode, live provider logs, and exportable batch results.</strong>
 </p>
@@ -176,6 +177,8 @@ flowchart LR
 =======
 =======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 Otomatisasi pengisian Google Form menggunakan AI — generate N persona unik, isi, dan submit sekaligus. Mendukung mode batch (auto-submit) dan review mode (lihat & edit jawaban dulu).
 
 ## Requirements
@@ -229,6 +232,9 @@ npm run dev
 
 Buka **http://localhost:5173**
 <<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
+=======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 =======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
@@ -236,6 +242,7 @@ Buka **http://localhost:5173**
 ## API Endpoints
 
 | Method | Endpoint | Description |
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 |---|---|---|
@@ -275,6 +282,8 @@ npm run build
 =======
 =======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 |--------|----------|-------------|
 | GET | `/` | Health check |
 | POST | `/api/parse/` | Parse a Google Form URL → form schema |
@@ -296,6 +305,9 @@ npm run build
 cd backend
 pytest tests/test_e2e.py -v -s
 <<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
+=======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 =======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
@@ -303,6 +315,7 @@ pytest tests/test_e2e.py -v -s
 
 ## Project Structure
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 ```text
@@ -362,6 +375,8 @@ Add a license before publishing if you want others to use or contribute to the p
 =======
 =======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ```
 backend/
 ├── app/
@@ -382,6 +397,9 @@ backend/
 └── .env.example
 ```
 <<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
+=======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 =======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
