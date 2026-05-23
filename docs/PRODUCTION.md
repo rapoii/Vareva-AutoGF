@@ -1,0 +1,109 @@
+# Production Notes
+
+This guide lists the main changes to review before running Vareva AutoGF outside local development.
+
+## Deployment Checklist
+
+- Configure provider API keys through platform secrets, not committed files.
+- Restrict CORS origins to trusted frontend domains.
+- Add authentication if the app is exposed beyond personal or internal use.
+- Add rate limiting and abuse protection around parse, generate, and submit endpoints.
+- Move from local SQLite to a managed relational database for multi-user or multi-instance deployments.
+- Review logging so generated names, answers, form URLs, and submission payloads are not exposed publicly.
+- Confirm Google Forms automation is only used for forms you own, administer, or are authorized to test.
+
+## Recommended Runtime Setup
+
+### Backend
+
+Run FastAPI behind a production ASGI server and reverse proxy.
+
+```powershell
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+For real deployments, run through your platform process manager and configure:
+
+- health checks against `GET /`
+- HTTPS termination at the proxy/platform layer
+- request timeout limits
+- structured log collection
+- restart policy on failure
+
+### Frontend
+
+Build static assets from `frontend/`:
+
+```powershell
+npm run build
+```
+
+Serve the generated `dist/` directory through a static host or reverse proxy. Configure the frontend API base URL according to the deployed backend origin.
+
+## Environment Variables
+
+Minimum required backend settings:
+
+```env
+GEMINI_API_KEY=your_key
+GROQ_API_KEY=your_key
+CEREBRAS_API_KEY=your_key
+OPENROUTER_API_KEY=your_key
+DATABASE_URL=sqlite:///gform.db
+LLM_MAX_RETRIES=3
+DEBUG=false
+```
+
+At least one provider key must be configured. Keep `DEBUG=false` in production.
+
+## Database
+
+SQLite is suitable for local development and single-user demos. Use a managed database when:
+
+- more than one app instance can run at the same time
+- multiple users will use the app
+- generated histories and logs must survive redeployments
+- backups, retention, and access control are required
+
+Before switching databases, verify SQLModel compatibility and run a migration/backfill plan for existing local data if needed.
+
+## Security & Privacy
+
+- Never commit `.env`, local database files, provider keys, or generated answer logs.
+- Treat generated answers and personas as PII-like data.
+- Avoid logging full submission payloads unless debugging locally.
+- Sanitize client-facing errors; detailed exceptions should stay in server logs.
+- Tighten CORS from `*` to explicit frontend origins.
+- Consider authentication and per-user authorization before public exposure.
+
+## Reliability
+
+- Keep provider fallback enabled so generation can continue when one provider is unavailable.
+- Monitor AI provider quota/rate-limit errors.
+- Keep `LLM_MAX_RETRIES` modest because retries spend tokens.
+- Use local similarity warnings and compact answer history rather than AI retries for duplicate answers.
+- Persist per-form name and answer history in the database used by production.
+
+## Observability
+
+Track at least:
+
+- request count and latency for parse/generate/submit/batch endpoints
+- provider selected per generation
+- provider failures and fallback counts
+- batch success/fail counts
+- submit HTTP status codes
+- unhandled backend errors
+
+The SSE stream already exposes live phase and provider events to the UI; production logs should preserve equivalent server-side context without leaking full answers.
+
+## Pre-launch Smoke Test
+
+1. Start backend and frontend with production-like environment variables.
+2. Parse a form you own.
+3. Run review mode with `skip_submit` behavior.
+4. Confirm personas match the form context and Indonesian name rules.
+5. Confirm answer history avoids obvious repeated combinations for the same form URL.
+6. Submit to a test form you control.
+7. Export CSV, JSON, and Excel-compatible files.
+8. Confirm no secrets, `.env`, local databases, or generated logs are included in the published repository.

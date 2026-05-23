@@ -1,0 +1,332 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Press+Start+2P&family=Space+Grotesk:wght@500;600;700;800&family=VT323&display=swap');
+@import 'tailwindcss';
+
+/* =========================================================================
+ * VAREVA AUTOGF — NEOBRUTALISM × PIXEL DESIGN SYSTEM
+ * Hard borders, hard shadows, saturated colors, GPU-only animations.
+ * ======================================================================= */
+
+@theme {
+  /* === Color Palette (HSL legacy + raw HEX) === */
+  --color-bg: #FFF7E6;           /* warm paper */
+  --color-bg-alt: #FFFCF4;
+  --color-ink: #101014;          /* soft black */
+  --color-ink-soft: #34323D;
+  --color-mute: #6F6B7A;
+
+  --color-brutal-yellow: #FFD84D;
+  --color-brutal-pink: #FF73A9;
+  --color-brutal-blue: #58C4FF;
+  --color-brutal-lime: #B9FF66;
+  --color-brutal-red: #FF4D5E;
+  --color-brutal-violet: #B9A3FF;
+  --color-brutal-orange: #FFB156;
+  --color-brutal-mint: #7CF7D4;
+  --color-brutal-cream: #FFF0BF;
+
+  /* HSL aliases used by shadcn primitives — kept for backward compat */
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-ink);
+  --color-card: var(--color-bg-alt);
+  --color-card-foreground: var(--color-ink);
+  --color-primary: var(--color-brutal-yellow);
+  --color-primary-foreground: var(--color-ink);
+  --color-secondary: var(--color-brutal-pink);
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted: #F0E7CF;
+  --color-muted-foreground: var(--color-mute);
+  --color-accent: var(--color-brutal-blue);
+  --color-accent-foreground: var(--color-ink);
+  --color-destructive: var(--color-brutal-red);
+  --color-destructive-foreground: var(--color-ink);
+  --color-border: var(--color-ink);
+  --color-input: var(--color-ink);
+  --color-ring: var(--color-ink);
+
+  /* === Typography === */
+  --font-display: 'Press Start 2P', 'VT323', ui-monospace, monospace;
+  --font-pixel: 'VT323', 'Press Start 2P', ui-monospace, monospace;
+  --font-body: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Fira Code', monospace;
+  --font-sans: var(--font-body);
+
+  /* === Animations: only transform/opacity for 240fps+ === */
+  --animate-pixel-blink: pixel-blink 1s steps(2) infinite;
+  --animate-bob: bob 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  --animate-spin-step: spin-step 1.2s steps(8) infinite;
+  --animate-pulse-brutal: pulse-brutal 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  --animate-marquee: marquee 14s linear infinite;
+  --animate-fade-up: fade-up 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in: fade-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-pop: pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-slide-right: slide-right 8s linear infinite;
+  --animate-glitch: glitch 2.4s steps(4) infinite;
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* =========================================================================
+ * KEYFRAMES — pure transform/opacity → GPU-accelerated, sub-1ms paint
+ * ======================================================================= */
+
+@keyframes pixel-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes bob {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -6px, 0); }
+}
+
+@keyframes spin-step {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-brutal {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+@keyframes marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-33.333333%, 0, 0); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pop {
+  0% { opacity: 0; transform: scale(0.85); }
+  60% { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-right {
+  from { transform: translate3d(-100%, 0, 0); }
+  to { transform: translate3d(100%, 0, 0); }
+}
+
+@keyframes glitch {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  20% { transform: translate3d(-1px, 1px, 0); }
+  40% { transform: translate3d(1px, -1px, 0); }
+  60% { transform: translate3d(-2px, 0, 0); }
+  80% { transform: translate3d(2px, 0, 0); }
+}
+
+/* =========================================================================
+ * BASE LAYER — body, invisible scrollbars, selection
+ * ======================================================================= */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    border-color: var(--color-ink);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    scrollbar-width: none;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-feature-settings: 'ss01', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Static grid background: crisp pixel mood without runtime work. */
+    background-image:
+      linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+      linear-gradient(180deg, var(--color-bg-alt) 0%, var(--color-bg) 44%, #F9ECFF 100%);
+    background-size: 32px 32px, 32px 32px, auto;
+    overflow-x: hidden;
+    -ms-overflow-style: none;
+  }
+
+  ::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+    background: transparent;
+  }
+
+  ::selection {
+    background: var(--color-brutal-yellow);
+    color: var(--color-ink);
+  }
+
+  button { font-family: inherit; }
+
+  :focus-visible {
+    outline: 4px solid var(--color-brutal-blue);
+    outline-offset: 3px;
+  }
+}
+
+/* =========================================================================
+ * UTILITIES — neobrutalism shadow & border helpers
+ * Hard offset, no blur. Use will-change for hot transforms.
+ * ======================================================================= */
+
+@layer utilities {
+  .marquee-shell {
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    min-width: max-content;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    will-change: transform;
+    animation: marquee 14s linear infinite;
+  }
+
+  .marquee-group {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 2rem;
+    padding-inline: 1rem;
+  }
+
+  /* Hard pixel-style shadows */
+  .shadow-brutal     { box-shadow: 4px 4px 0 0 var(--color-ink); }
+  .shadow-brutal-sm  { box-shadow: 2px 2px 0 0 var(--color-ink); }
+  .shadow-brutal-lg  { box-shadow: 7px 7px 0 0 var(--color-ink); }
+  .shadow-brutal-xl  { box-shadow: 10px 10px 0 0 var(--color-ink); }
+  .shadow-brutal-inset { box-shadow: inset 0 0 0 3px var(--color-ink); }
+
+  /* Stepped multi-layer shadow (pixel staircase look) */
+  .shadow-pixel-stack {
+    box-shadow:
+      2px 2px 0 0 var(--color-ink),
+      4px 4px 0 0 var(--color-ink),
+      6px 6px 0 0 var(--color-ink);
+  }
+
+  /* Borders */
+  .border-brutal { border: 3px solid var(--color-ink); border-radius: 6px; }
+  .border-brutal-2 { border: 2px solid var(--color-ink); border-radius: 4px; }
+  .border-brutal-4 { border: 4px solid var(--color-ink); border-radius: 8px; }
+
+  .brutal-radius { border-radius: 6px; }
+
+  /* Pixel image rendering */
+  .pixelated { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+  /* GPU layer hint */
+  .gpu { will-change: transform; transform: translateZ(0); backface-visibility: hidden; }
+
+  /* Smooth interactive press */
+  .press {
+    transition: transform 120ms var(--ease-premium),
+                box-shadow 120ms var(--ease-premium),
+                background-color 120ms var(--ease-premium),
+                color 120ms var(--ease-premium);
+    will-change: transform, box-shadow;
+  }
+  .press:hover { transform: translate3d(-2px, -2px, 0); box-shadow: 6px 6px 0 0 var(--color-ink); }
+  .press:active { transform: translate3d(2px, 2px, 0); box-shadow: 0 0 0 0 var(--color-ink); }
+
+  .press-lg {
+    transition: transform 140ms var(--ease-premium),
+                box-shadow 140ms var(--ease-premium);
+    will-change: transform, box-shadow;
+  }
+  .press-lg:hover { transform: translate3d(-3px, -3px, 0); box-shadow: 11px 11px 0 0 var(--color-ink); }
+  .press-lg:active { transform: translate3d(4px, 4px, 0); box-shadow: 4px 4px 0 0 var(--color-ink); }
+
+  /* Pixel dot pattern background */
+  .bg-pixel-dots {
+    background-image: radial-gradient(var(--color-ink) 1px, transparent 1px);
+    background-size: 12px 12px;
+  }
+
+  /* Diagonal stripes — for warning/error states */
+  .bg-stripe-warn {
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--color-brutal-yellow),
+      var(--color-brutal-yellow) 12px,
+      var(--color-ink) 12px,
+      var(--color-ink) 14px
+    );
+  }
+
+  /* Containment for big lists — boost paint perf */
+  .perf-isolate { contain: layout paint; }
+
+  .pixel-glass {
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(255, 240, 191, 0.92));
+  }
+
+  .premium-band {
+    background:
+      linear-gradient(90deg, var(--color-brutal-yellow) 0 24%, var(--color-brutal-pink) 24% 48%, var(--color-brutal-blue) 48% 72%, var(--color-brutal-lime) 72% 100%);
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  /* Fonts shortcut */
+  .font-display { font-family: var(--font-display); letter-spacing: 0; }
+  .font-pixel { font-family: var(--font-pixel); }
+  .font-mono { font-family: var(--font-mono); }
+  .font-body { font-family: var(--font-body); }
+
+  .tracking-tight,
+  .tracking-wide,
+  .tracking-wider,
+  .tracking-widest {
+    letter-spacing: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
+@media (max-width: 767px) {
+  body {
+    background-size: 24px 24px;
+  }
+}
+
+/* Reduce motion — respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .marquee-track {
+    animation-duration: 20s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

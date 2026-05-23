@@ -1,0 +1,10 @@
+"""Modular configuration settings for the application.
+
+This package provides split, domain-specific configuration classes
+following FastAPI best practices.
+"""
+from app.config.database import DatabaseConfig
+from app.config.ai_providers import AIProviderConfig
+from app.config.app import AppConfig, get_settings
+
+__all__ = ["DatabaseConfig", "AIProviderConfig", "AppConfig", "get_settings"]
