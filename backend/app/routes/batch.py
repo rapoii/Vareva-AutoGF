@@ -142,6 +142,7 @@ def batch_run(req: BatchRunRequest, db: SessionDep, request: Request):
             persona_text=f"{persona.name}, {persona.age} thn, {persona.occupation} ({persona.city})",
             answers={},
             tokens_used=0,
+            retries=0,
             submit_status="failed",
             http_code=0,
         )
@@ -161,6 +162,7 @@ def batch_run(req: BatchRunRequest, db: SessionDep, request: Request):
                 )
             answer_history.append(gen.answers)
             iteration_result.tokens_used = gen.tokens_used
+            iteration_result.retries = gen.retries
         except Exception as e:
             logger.warning("Iterasi %d: generate gagal: %s", i, e)
             iteration_result.error_message = f"Generate error: {e}"
@@ -321,6 +323,7 @@ def batch_run_stream(req: BatchRunRequest):
                     "persona_text": f"{persona.name}, {persona.age} thn, {persona.occupation} ({persona.city})",
                     "answers": {},
                     "tokens_used": 0,
+                    "retries": 0,
                     "submit_status": "failed",
                     "http_code": 0,
                     "error_message": None
@@ -331,9 +334,11 @@ def batch_run_stream(req: BatchRunRequest):
                     gen_resp, ans_provider = generate_answers_with_provider(form_schema, persona_text, answer_history)
                     iter_res["answers"] = gen_resp.answers
                     iter_res["tokens_used"] = gen_resp.tokens_used
+                    iter_res["retries"] = gen_resp.retries
                     similarity = closest_answer_similarity(gen_resp.answers, answer_history, form_schema)
                     answer_history.append(gen_resp.answers)
                     yield _sse("provider", {"phase": "submit", "provider": ans_provider, "iteration": i})
+                    yield _sse("log", {"phase": "submit", "message": f"Persona {i}: generated with {ans_provider} after {gen_resp.retries + 1} attempt(s), {gen_resp.tokens_used} tokens."})
                     if similarity.compared_fields > 0 and similarity.score >= 0.82:
                         yield _sse("log", {"phase": "submit", "message": f"Answer history applied; warning persona {i}: {similarity.score:.0%} similar to prior answers."})
                     else:

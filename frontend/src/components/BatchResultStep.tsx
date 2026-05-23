@@ -47,7 +47,9 @@ function IterationCard({ item }: { item: IterationResult }) {
               {success ? `HTTP ${item.http_code}` : item.error_message ?? "FAILED"}
             </span>
             {item.tokens_used > 0 && (
-              <span className="text-xs text-ink-soft">· {item.tokens_used} tokens</span>
+              <span className="text-xs text-ink-soft">
+                · {item.tokens_used} tokens{item.retries > 0 ? ` · ${item.retries} retry${item.retries > 1 ? "s" : ""}` : ""}
+              </span>
             )}
           </div>
         </div>
@@ -164,14 +166,6 @@ export function BatchResultStep({ result, onReset }: BatchResultStepProps) {
                 label="GAGAL"
                 value={String(result.fail_count).padStart(2, "0")}
                 tone={result.fail_count > 0 ? "red" : "white"}
-              />
-            </div>
-
-            {/* Chunky progress bar */}
-            <div className="mt-6 border-brutal bg-white p-1 shadow-brutal-sm">
-              <div
-                className="h-4 bg-brutal-lime border-r-[3px] border-(--color-ink) transition-all duration-500"
-                style={{ width: `${successRate}%` }}
               />
             </div>
           </CardContent>

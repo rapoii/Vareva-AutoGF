@@ -13,11 +13,12 @@ interface ReviewSubmitStepProps {
   sessionId: number
   formUrl: string
   generateResults: GenerateResponse[]
+  systemLogs?: string[]
   onBack: () => void
   onReset: () => void
 }
 
-export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, onBack, onReset }: ReviewSubmitStepProps) {
+export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, systemLogs = [], onBack, onReset }: ReviewSubmitStepProps) {
   // State for each persona's answers
   const [allAnswers, setAllAnswers] = useState<Record<string, string | string[]>[]>(
     generateResults.map((r) => r.answers)
@@ -171,7 +172,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
       <div className="lg:col-span-8 space-y-4">
         {/* Persona Selector — chunky pills */}
         {generateResults.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide">
             {generateResults.map((_, idx) => (
               <button
                 key={idx}
@@ -324,7 +325,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
             <CardContent className="p-4">
               <div className="flex items-center gap-4">
                 <div className="border-brutal bg-white p-2 shadow-brutal-sm">
-                  <Loader2 className="w-6 h-6 gpu" style={{ animation: "var(--animate-spin-step)" }} />
+                  <Loader2 className="w-6 h-6 gpu motion-safe-loader" />
                 </div>
                 <div className="flex-1">
                   <div className="font-display text-xs mb-1">SUBMITTING...</div>
@@ -341,8 +342,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
                       }}
                     />
                     <div
-                      className="absolute inset-y-0 w-10 bg-white/60"
-                      style={{ animation: "var(--animate-slide-right)" }}
+                      className="absolute inset-y-0 w-10 bg-white/60 motion-safe-shimmer"
                     />
                   </div>
                 </div>
@@ -404,8 +404,19 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
           </div>
         </div>
 
-        <div className="border-brutal bg-white shadow-brutal-lg p-6 flex items-center justify-center">
-          <PixelRobot size={64} />
+        <div className="border-brutal bg-(--color-ink) text-white shadow-brutal-lg p-4">
+          <div className="font-display text-[10px] mb-3 flex items-center gap-2 text-brutal-lime">
+            <Terminal className="w-4 h-4" strokeWidth={3} />
+            SYSTEM LOG
+          </div>
+          <div className="max-h-40 overflow-y-auto pr-2 space-y-1 overscroll-contain font-mono text-[11px] leading-relaxed">
+            {(systemLogs.length > 0 ? systemLogs : ["No generation logs available."]).slice(-20).map((log, i) => (
+              <div key={`${i}-${log}`} className="flex gap-2">
+                <span className="text-(--color-brutal-pink) shrink-0">&gt;</span>
+                <span className="text-white/90">{log}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </aside>
 

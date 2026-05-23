@@ -13,6 +13,7 @@ class IterationResult(CustomModel):
     persona_text: str
     answers: dict[str, str | list[str]]
     tokens_used: int
+    retries: int = 0
     submit_status: str
     http_code: int
     log_id: int | None = None

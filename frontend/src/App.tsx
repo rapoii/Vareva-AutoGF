@@ -60,7 +60,7 @@ function App() {
             .map((r) => ({
               answers: r.answers,
               tokens_used: r.tokens_used,
-              retries: 0,
+              retries: r.retries ?? 0,
             }))
           if (validResults.length === 0) {
             setError(result.results[0]?.error_message ?? "Gagal generate persona")
@@ -192,6 +192,7 @@ function App() {
             sessionId={reviewSessionId}
             formUrl={pendingUrl}
             generateResults={reviewResults}
+            systemLogs={streamLogs}
             onBack={handleReset}
             onReset={handleReset}
           />

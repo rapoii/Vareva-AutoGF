@@ -329,4 +329,16 @@
     animation-duration: 20s !important;
     animation-iteration-count: infinite !important;
   }
+
+  .motion-safe-loader {
+    animation: var(--animate-spin-step) !important;
+    animation-duration: 1.2s !important;
+    animation-iteration-count: infinite !important;
+    transition-duration: 120ms !important;
+  }
+
+  .motion-safe-shimmer {
+    animation: var(--animate-slide-right) !important;
+    animation-iteration-count: infinite !important;
+  }
 }
