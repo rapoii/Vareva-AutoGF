@@ -1,6 +1,7 @@
 # Vareva AutoGF
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 <p align="center">
   <strong>AI-powered Google Forms automation with realistic Indonesian personas, review mode, live provider logs, and exportable batch results.</strong>
 </p>
@@ -173,6 +174,8 @@ flowchart LR
   K --> L[Save logs and show/export results]
 ```
 =======
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 Otomatisasi pengisian Google Form menggunakan AI — generate N persona unik, isi, dan submit sekaligus. Mendukung mode batch (auto-submit) dan review mode (lihat & edit jawaban dulu).
 
 ## Requirements
@@ -225,11 +228,15 @@ npm run dev
 ```
 
 Buka **http://localhost:5173**
+<<<<<<< HEAD
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
+=======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
+<<<<<<< HEAD
 <<<<<<< HEAD
 |---|---|---|
 | `GET` | `/` | Health check |
@@ -266,6 +273,8 @@ Frontend build:
 Set-Location frontend
 npm run build
 =======
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 |--------|----------|-------------|
 | GET | `/` | Health check |
 | POST | `/api/parse/` | Parse a Google Form URL → form schema |
@@ -286,11 +295,15 @@ npm run build
 ```bash
 cd backend
 pytest tests/test_e2e.py -v -s
+<<<<<<< HEAD
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
+=======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ```
 
 ## Project Structure
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 ```text
 v2/
@@ -347,6 +360,8 @@ Before deploying:
 
 Add a license before publishing if you want others to use or contribute to the project.
 =======
+=======
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ```
 backend/
 ├── app/
@@ -366,4 +381,7 @@ backend/
 ├── pytest.ini
 └── .env.example
 ```
+<<<<<<< HEAD
+>>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
+=======
 >>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
