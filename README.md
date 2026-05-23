@@ -104,16 +104,23 @@ py -3.12 -m venv .venv
 Copy-Item .env.example .env
 ```
 
-Edit `backend/.env` and add at least one provider key:
+Edit `backend/.env` and add at least one provider key. The full template is in `backend/.env.example`:
 
 ```env
-GEMINI_API_KEY=your_key
-GROQ_API_KEY=your_key
-CEREBRAS_API_KEY=your_key
-OPENROUTER_API_KEY=your_key
-DATABASE_URL=sqlite:///gform.db
+OPENROUTER_API_KEY=your-openrouter-api-key-here
+OPENROUTER_MODEL=poolside/laguna-xs.2:free
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+DATABASE_URL=sqlite:///./gform.db
 LLM_MAX_RETRIES=3
-DEBUG=false
+
+GEMINI_API_KEY=your-gemini-api-key-here
+GEMINI_MODEL=gemini-2.5-flash-lite
+
+GROQ_API_KEY=your-groq-api-key-here
+GROQ_MODEL=llama-3.3-70b-versatile
+
+CEREBRAS_API_KEY=your-cerebras-api-key-here
+CEREBRAS_MODEL=qwen-3-235b-a22b-instruct-2507
 ```
 
 ### 3. Frontend setup
