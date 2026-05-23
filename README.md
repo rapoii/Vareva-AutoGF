@@ -1,8 +1,5 @@
 # Vareva AutoGF
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 <p align="center">
   <strong>AI-powered Google Forms automation with realistic Indonesian personas, review mode, live provider logs, and exportable batch results.</strong>
 </p>
@@ -33,12 +30,7 @@ It is designed around three goals:
 
 ### AI generation
 
-- Multi-provider AI fallback chain:
-  1. Gemini
-  2. Groq
-  3. Cerebras
-  4. OpenRouter
-  5. Static fallback as last resort
+- Multi-provider AI fallback chain: Gemini → Groq → Cerebras → OpenRouter → static fallback.
 - Context-aware persona generation from parsed form topic and target audience.
 - Compact prompts to reduce token usage without removing features.
 - Form option validation and retry for invalid JSON/invalid answer options.
@@ -86,10 +78,10 @@ Add screenshots to a `docs/assets/` folder if you want GitHub visitors to see th
 
 | Layer | Stack |
 |---|---|
-| Backend | FastAPI 0.136, SQLModel 0.0.38, Pydantic, SQLite |
-| AI SDK | OpenAI SDK 2.37 with multiple OpenAI-compatible providers |
+| Backend | FastAPI, SQLModel, Pydantic, SQLite |
+| AI SDK | OpenAI SDK with multiple OpenAI-compatible providers |
 | HTTP | httpx with HTTP/2 |
-| Frontend | React 19, Vite 8, TypeScript 6 |
+| Frontend | React 19, Vite, TypeScript |
 | Styling | Tailwind CSS 4, Radix UI, shadcn-style primitives |
 | Icons | Lucide React + custom SVG pixel art |
 | Tests | pytest + pytest-asyncio |
@@ -174,83 +166,16 @@ flowchart LR
   J --> K
   K --> L[Save logs and show/export results]
 ```
-=======
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-Otomatisasi pengisian Google Form menggunakan AI — generate N persona unik, isi, dan submit sekaligus. Mendukung mode batch (auto-submit) dan review mode (lihat & edit jawaban dulu).
-
-## Requirements
-
-- Python 3.11+
-- Node.js 18+
-- API key dari [OpenRouter](https://openrouter.ai) (gratis)
-
-## Setup Backend
-
-```bash
-cd backend
-
-# Create and activate virtual environment
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate     # macOS / Linux
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment
-copy .env.example .env          # Windows
-# cp .env.example .env          # macOS / Linux
-# Edit .env dan set OPENROUTER_API_KEY
-```
-
-`.env` minimal:
-```
-OPENROUTER_API_KEY=sk-or-v1-...
-OPENROUTER_MODEL=nvidia/nemotron-3-super-120b-a12b:free
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-```
-
-## Run Backend
-
-```bash
-cd backend
-uvicorn app.main:app --reload
-```
-
-Swagger UI: **http://localhost:8000/docs**
-
-## Setup & Run Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Buka **http://localhost:5173**
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 |---|---|---|
 | `GET` | `/` | Health check |
 | `POST` | `/api/parse/` | Parse Google Form URL into schema |
 | `POST` | `/api/generate/` | Generate personas and answers |
 | `POST` | `/api/submit/` | Submit a single answer payload |
-| `POST` | `/api/batch/run` | Batch parse → generate → submit; streams when requested |
+| `POST` | `/api/batch/run` | Batch parse → generate → submit |
 | `POST` | `/api/batch/run-stream` | Dedicated SSE batch pipeline |
 | `POST` | `/api/personas/` | Create persona profile |
 | `GET` | `/api/personas/` | List persona profiles |
@@ -279,45 +204,10 @@ Frontend build:
 ```powershell
 Set-Location frontend
 npm run build
-=======
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-|--------|----------|-------------|
-| GET | `/` | Health check |
-| POST | `/api/parse/` | Parse a Google Form URL → form schema |
-| POST | `/api/generate/` | Generate AI answers from form schema + persona |
-| POST | `/api/submit/` | Submit answers to Google Form |
-| POST | `/api/personas/` | Create a persona |
-| GET | `/api/personas/` | List all personas |
-| GET | `/api/personas/{id}` | Get persona by ID |
-| PATCH | `/api/personas/{id}` | Update persona |
-| DELETE | `/api/personas/{id}` | Delete persona |
-| POST | `/api/batch/run` | Batch: parse + generate N personas + submit N kali |
-
-## Run integration test
-
-1. Pastikan `.env` sudah diisi `OPENROUTER_API_KEY`.
-2. `TEST_FORM_URL` di `tests/test_e2e.py` sudah di-set ke form publik (default sudah ada).
-
-```bash
-cd backend
-pytest tests/test_e2e.py -v -s
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
 ```
 
 ## Project Structure
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 ```text
 v2/
 ├── backend/
@@ -334,10 +224,10 @@ v2/
 │   │   ├── components/    # step UI, pixel art, primitives
 │   │   ├── hooks/         # React action helpers
 │   │   └── lib/           # API client, export helpers, review quality
-│   └── package.json
 ├── docs/                  # project documentation
 ├── CLAUDE.md              # AI assistant project guide
 ├── PLAN.md                # implementation plan/history
+├── PRD.md                 # product requirements document
 ├── dev.ps1                # one-command dev runner
 └── README.md
 ```
@@ -372,34 +262,3 @@ Before deploying:
 ## License
 
 Add a license before publishing if you want others to use or contribute to the project.
-=======
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-```
-backend/
-├── app/
-│   ├── main.py          # FastAPI entry point
-│   ├── config.py        # Settings via pydantic-settings
-│   ├── db.py            # SQLite engine + session dependency
-│   ├── core/
-│   │   ├── parser.py    # Google Form HTML → FormSchema (httpx HTTP/2)
-│   │   ├── generator.py # FormSchema + persona → AnswerMap via OpenRouter
-│   │   └── submitter.py # AnswerMap → HTTP POST ke Google Form (httpx HTTP/2)
-│   ├── models/          # SQLModel ORM table definitions
-│   ├── routes/          # FastAPI routers (parse, generate, submit, personas, batch)
-│   └── schemas/         # Pydantic request/response schemas
-├── tests/
-│   └── test_e2e.py      # End-to-end integration test
-├── requirements.txt
-├── pytest.ini
-└── .env.example
-```
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
-=======
->>>>>>> 0eed56a69d541164b5ef83a6b3a412f1277eac95
