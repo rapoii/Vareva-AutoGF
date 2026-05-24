@@ -38,7 +38,7 @@ class AIProviderConfig(BaseSettings):
     # OpenRouter (Fallback 3)
     openrouter_api_key: str = ""
     openrouter_model: str = "poolside/laguna-xs.2:free"
-    openrouter_fallback_models: str = "openrouter/free"
+    openrouter_fallback_models: str = "openrouter/free,google/gemma-3-27b-it:free,google/gemma-3-12b-it:free,meta-llama/llama-3.3-70b-instruct:free,mistralai/mistral-small-3.1-24b-instruct:free,qwen/qwen3-235b-a22b:free,deepseek/deepseek-chat-v3-0324:free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
     # General LLM settings

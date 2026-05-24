@@ -1,0 +1,341 @@
+const SHARED_SECRET = 'PASTE_SECRET_YANG_SAMA_DENGAN_GOOGLE_SHEETS_SHARED_SECRET';
+
+const SHEETS = {
+  users: ['id', 'created_at', 'name', 'email', 'password_hash', 'last_login_at'],
+  sessions: ['id', 'created_at', 'user_id', 'form_url', 'form_title', 'count', 'success_count', 'fail_count', 'mode'],
+  form_schemas: ['id', 'session_id', 'user_id', 'form_url', 'schema_json', 'created_at'],
+  submission_logs: ['id', 'session_id', 'user_id', 'form_url', 'iteration', 'persona_text', 'answers_json', 'submit_status', 'http_code', 'tokens_used', 'retries', 'provider', 'error_message', 'created_at'],
+  generated_persona_logs: ['id', 'session_id', 'user_id', 'form_url', 'name', 'gender', 'age', 'occupation', 'persona_json', 'created_at'],
+};
+
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents || '{}');
+    if (body.token !== SHARED_SECRET) return jsonResponse({ ok: false, error: 'Invalid token' });
+
+    const action = body.action;
+    const payload = body.payload || {};
+
+    if (action === 'health_check') return jsonResponse({ ok: true, data: { status: 'ok' } });
+    if (action === 'create_user') return withLock(() => jsonResponse({ ok: true, data: { user: createUser(payload) } }));
+    if (action === 'get_user_by_email') return jsonResponse({ ok: true, data: { user: getUserByEmail(payload.email) } });
+    if (action === 'update_user_last_login') return withLock(() => jsonResponse({ ok: true, data: updateUserLastLogin(payload) }));
+    if (action === 'update_user_profile') return withLock(() => jsonResponse({ ok: true, data: { user: updateUserProfile(payload) } }));
+    if (action === 'update_user_password') return withLock(() => jsonResponse({ ok: true, data: updateUserPassword(payload) }));
+    if (action === 'get_form_history') return jsonResponse({ ok: true, data: { items: getFormHistory(payload) } });
+    if (action === 'delete_form_history') return withLock(() => jsonResponse({ ok: true, data: deleteFormHistory(payload) }));
+    if (action === 'create_session') return withLock(() => jsonResponse({ ok: true, data: { session: createSession(payload) } }));
+    if (action === 'save_form_schema') return withLock(() => jsonResponse({ ok: true, data: appendObject('form_schemas', payload) }));
+    if (action === 'append_submission_log') return withLock(() => jsonResponse({ ok: true, data: appendObject('submission_logs', payload) }));
+    if (action === 'append_generated_persona_log') return withLock(() => jsonResponse({ ok: true, data: appendObject('generated_persona_logs', payload) }));
+    if (action === 'get_answer_history') return jsonResponse({ ok: true, data: { history: getAnswerHistory(payload) } });
+    if (action === 'get_used_persona_names') return jsonResponse({ ok: true, data: { names: getUsedPersonaNames(payload) } });
+    if (action === 'update_session_result') return withLock(() => jsonResponse({ ok: true, data: updateSessionResult(payload) }));
+
+    return jsonResponse({ ok: false, error: 'Unknown action: ' + action });
+  } catch (err) {
+    return jsonResponse({ ok: false, error: String(err && err.message ? err.message : err) });
+  }
+}
+
+function setupSheets() {
+  Object.keys(SHEETS).forEach((name) => {
+    const sheet = getSheet(name);
+    const headers = SHEETS[name];
+    const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+    const empty = current.every((v) => !v);
+    if (empty) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    const idCol = headers.indexOf('id') + 1;
+    if (idCol > 0) sheet.getRange(1, idCol, Math.max(sheet.getMaxRows(), 1), 1).setNumberFormat('@');
+  });
+}
+
+function withLock(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getSheet(name) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName(name);
+  if (!sheet) sheet = spreadsheet.insertSheet(name);
+  return sheet;
+}
+
+function makeId(prefix) {
+  const map = {
+    user: 'usr',
+    session: 'ses',
+    form_schema: 'sch',
+    submission_log: 'log',
+    generated_persona_log: 'per',
+  };
+  const tag = map[prefix] || String(prefix || 'id').slice(0, 3);
+  const random = Utilities.getUuid().replace(/-/g, '').slice(0, 12);
+  return `${tag}_${random}`;
+}
+
+function appendObject(sheetName, obj) {
+  const headers = SHEETS[sheetName];
+  const rowObj = Object.assign({}, obj);
+  if (!rowObj.id) rowObj.id = makeId(sheetName.replace(/s$/, ''));
+  const row = headers.map((key) => rowObj[key] == null ? '' : rowObj[key]);
+  const sheet = getSheet(sheetName);
+  sheet.appendRow(row);
+  const idCol = headers.indexOf('id') + 1;
+  if (idCol > 0) sheet.getRange(sheet.getLastRow(), idCol).setNumberFormat('@');
+  return { id: rowObj.id };
+}
+
+function readObjects(sheetName) {
+  const sheet = getSheet(sheetName);
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return [];
+  const headers = values[0].map(String);
+  return values.slice(1).filter((row) => row.some((v) => v !== '')).map((row) => {
+    const obj = {};
+    headers.forEach((key, i) => obj[key] = row[i]);
+    return obj;
+  });
+}
+
+function findRowById(sheetName, id) {
+  const target = String(id || '');
+  const sheet = getSheet(sheetName);
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return 0;
+  const headers = values[0].map(String);
+  const idIndex = headers.indexOf('id');
+  if (idIndex < 0) return 0;
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][idIndex]) === target) return i + 1;
+  }
+  return 0;
+}
+
+function setCellByHeader(sheetName, row, header, value) {
+  const sheet = getSheet(sheetName);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const col = headers.indexOf(header) + 1;
+  if (col <= 0) throw new Error(`Header ${header} tidak ditemukan di ${sheetName}`);
+  sheet.getRange(row, col).setValue(value);
+}
+
+function createUser(payload) {
+  const email = String(payload.email || '').trim().toLowerCase();
+  if (!email) throw new Error('Email wajib diisi');
+  if (getUserByEmail(email)) throw new Error('Email sudah terdaftar');
+
+  const user = {
+    id: makeId('user'),
+    created_at: payload.created_at || new Date().toISOString(),
+    name: payload.name || '',
+    email: email,
+    password_hash: payload.password_hash || '',
+    last_login_at: '',
+  };
+  appendObject('users', user);
+  return user;
+}
+
+function getUserByEmail(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return null;
+  return readObjects('users').find((user) => String(user.email || '').trim().toLowerCase() === normalized) || null;
+}
+
+function updateUserLastLogin(payload) {
+  const row = findRowById('users', payload.user_id);
+  if (!row) return { updated: false };
+  setCellByHeader('users', row, 'last_login_at', payload.last_login_at || new Date().toISOString());
+  return { updated: true };
+}
+
+function updateUserProfile(payload) {
+  const userId = String(payload.user_id || '');
+  const email = String(payload.email || '').trim().toLowerCase();
+  const name = String(payload.name || '').trim();
+  if (!userId) throw new Error('user_id wajib diisi');
+  if (!email) throw new Error('Email wajib diisi');
+  if (!name) throw new Error('Nama wajib diisi');
+
+  const existing = getUserByEmail(email);
+  if (existing && String(existing.id) !== userId) throw new Error('Email sudah dipakai akun lain');
+
+  const row = findRowById('users', userId);
+  if (!row) throw new Error('User tidak ditemukan');
+  setCellByHeader('users', row, 'name', name);
+  setCellByHeader('users', row, 'email', email);
+  return getUserByEmail(email);
+}
+
+function updateUserPassword(payload) {
+  const row = findRowById('users', payload.user_id);
+  if (!row) throw new Error('User tidak ditemukan');
+  setCellByHeader('users', row, 'password_hash', payload.password_hash || '');
+  return { updated: true };
+}
+
+function createSession(payload) {
+  const session = {
+    id: makeId('session'),
+    created_at: payload.created_at || new Date().toISOString(),
+    user_id: payload.user_id || '',
+    form_url: payload.form_url || '',
+    form_title: payload.form_title || '',
+    count: payload.count || 0,
+    success_count: payload.success_count || 0,
+    fail_count: payload.fail_count || 0,
+    mode: payload.mode || 'auto',
+  };
+  appendObject('sessions', session);
+  return session;
+}
+
+function updateSessionResult(payload) {
+  const sessionId = String(payload.session_id || '');
+  const sheet = getSheet('sessions');
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const idCol = headers.indexOf('id') + 1;
+  const successCol = headers.indexOf('success_count') + 1;
+  const failCol = headers.indexOf('fail_count') + 1;
+  for (let r = 2; r <= values.length; r++) {
+    if (String(sheet.getRange(r, idCol).getValue()) === sessionId) {
+      sheet.getRange(r, successCol).setValue(payload.success_count || 0);
+      sheet.getRange(r, failCol).setValue(payload.fail_count || 0);
+      return { updated: true };
+    }
+  }
+  return { updated: false };
+}
+
+function getAnswerHistory(payload) {
+  const formUrl = String(payload.form_url || '');
+  const userId = String(payload.user_id || '');
+  const limit = Number(payload.limit || 12);
+  return readObjects('submission_logs')
+    .filter((row) => String(row.form_url || '') === formUrl && (!userId || String(row.user_id || '') === userId) && row.answers_json)
+    .slice(-limit)
+    .map((row) => {
+      try {
+        return JSON.parse(row.answers_json);
+      } catch (err) {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function getUsedPersonaNames(payload) {
+  const formUrl = String(payload.form_url || '');
+  const userId = String(payload.user_id || '');
+  return readObjects('generated_persona_logs')
+    .filter((row) => String(row.form_url || '') === formUrl && (!userId || String(row.user_id || '') === userId) && row.name)
+    .map((row) => String(row.name));
+}
+
+function getFormHistory(payload) {
+  const userId = String(payload.user_id || '');
+  const grouped = {};
+  const sessionToUrl = {};
+  readObjects('sessions')
+    .filter((row) => String(row.user_id || '') === userId && row.form_url)
+    .forEach((row) => {
+      const url = String(row.form_url || '');
+      const sessionId = String(row.id || '');
+      if (sessionId) sessionToUrl[sessionId] = url;
+      if (!grouped[url]) grouped[url] = makeHistoryItem(url);
+      grouped[url].form_title = grouped[url].form_title || String(row.form_title || '');
+      grouped[url].session_count += 1;
+      grouped[url].last_activity_at = maxDate(grouped[url].last_activity_at, row.created_at);
+    });
+  readObjects('submission_logs').forEach((row) => {
+    const url = sessionToUrl[String(row.session_id || '')] || String(row.form_url || '');
+    const isOwner = (String(row.user_id || '') === userId) || sessionToUrl[String(row.session_id || '')];
+    if (url && isOwner) {
+      if (!grouped[url]) grouped[url] = makeHistoryItem(url);
+      grouped[url].submission_count += 1;
+      grouped[url].last_activity_at = maxDate(grouped[url].last_activity_at, row.created_at);
+    }
+  });
+  readObjects('generated_persona_logs').forEach((row) => {
+    const url = sessionToUrl[String(row.session_id || '')] || String(row.form_url || '');
+    const isOwner = (String(row.user_id || '') === userId) || sessionToUrl[String(row.session_id || '')];
+    if (url && isOwner) {
+      if (!grouped[url]) grouped[url] = makeHistoryItem(url);
+      grouped[url].persona_count += 1;
+      grouped[url].last_activity_at = maxDate(grouped[url].last_activity_at, row.created_at);
+    }
+  });
+  return Object.values(grouped).sort((a, b) => String(b.last_activity_at).localeCompare(String(a.last_activity_at)));
+}
+
+function makeHistoryItem(formUrl) {
+  return {
+    form_url: formUrl,
+    form_title: '',
+    session_count: 0,
+    submission_count: 0,
+    persona_count: 0,
+    last_activity_at: '',
+  };
+}
+
+function maxDate(a, b) {
+  const left = String(a || '');
+  const right = String(b || '');
+  return right > left ? right : left;
+}
+
+function deleteFormHistory(payload) {
+  const userId = String(payload.user_id || '');
+  const formUrl = String(payload.form_url || '');
+  if (!userId) throw new Error('user_id wajib diisi');
+  if (!formUrl) throw new Error('form_url wajib diisi');
+  const sessionIds = readObjects('sessions')
+    .filter((row) => String(row.user_id || '') === userId && String(row.form_url || '') === formUrl)
+    .map((row) => String(row.id || ''))
+    .filter(Boolean);
+  return {
+    deleted_sessions: deleteRowsByUserAndForm('sessions', userId, formUrl),
+    deleted_form_schemas: deleteRowsByUserAndFormOrSession('form_schemas', userId, formUrl, sessionIds),
+    deleted_submission_logs: deleteRowsByUserAndFormOrSession('submission_logs', userId, formUrl, sessionIds),
+    deleted_generated_persona_logs: deleteRowsByUserAndFormOrSession('generated_persona_logs', userId, formUrl, sessionIds),
+  };
+}
+
+function deleteRowsByUserAndForm(sheetName, userId, formUrl) {
+  return deleteRowsByUserAndFormOrSession(sheetName, userId, formUrl, []);
+}
+
+function deleteRowsByUserAndFormOrSession(sheetName, userId, formUrl, sessionIds) {
+  const sheet = getSheet(sheetName);
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return 0;
+  const headers = values[0].map(String);
+  const userCol = headers.indexOf('user_id');
+  const formCol = headers.indexOf('form_url');
+  const sessionCol = headers.indexOf('session_id');
+  const sessionSet = new Set((sessionIds || []).map(String));
+  let deleted = 0;
+  for (let r = values.length; r >= 2; r--) {
+    const row = values[r - 1];
+    const matchesUserAndForm = userCol >= 0 && formCol >= 0 && String(row[userCol] || '') === userId && String(row[formCol] || '') === formUrl;
+    const matchesSessionAndForm = sessionCol >= 0 && formCol >= 0 && sessionSet.has(String(row[sessionCol] || '')) && String(row[formCol] || '') === formUrl;
+    if (matchesUserAndForm || matchesSessionAndForm) {
+      sheet.deleteRow(r);
+      deleted += 1;
+    }
+  }
+  return deleted;
+}

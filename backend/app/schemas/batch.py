@@ -16,13 +16,13 @@ class IterationResult(CustomModel):
     retries: int = 0
     submit_status: str
     http_code: int
-    log_id: int | None = None
+    log_id: str | None = None
     error_message: str | None = None
 
 
 class BatchRunResponse(CustomModel):
     form_title: str
-    session_id: int
+    session_id: str
     count: int
     results: list[IterationResult]
     success_count: int

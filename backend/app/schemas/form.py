@@ -51,4 +51,4 @@ class ParseRequest(CustomModel):
 
 class ParseResponse(CustomModel):
     schema_: FormSchema
-    session_id: int
+    session_id: str

@@ -12,14 +12,22 @@ interface BatchResultStepProps {
   onReset: () => void
 }
 
+const ITERATION_BADGE_COLORS = [
+  "bg-(--color-bg-alt) text-(--color-ink)",
+  "bg-(--color-candy-blush) text-(--color-ink)",
+  "bg-(--color-brutal-yellow) text-(--color-ink)",
+  "bg-(--color-candy-peach) text-(--color-ink)",
+]
+
 function IterationCard({ item }: { item: IterationResult }) {
   const [expanded, setExpanded] = useState(false)
   const success = item.submit_status === "success"
+  const badgeColor = ITERATION_BADGE_COLORS[(item.iteration - 1) % ITERATION_BADGE_COLORS.length]
 
   return (
     <div
       className={`press border-brutal gpu transition-all ${
-        success ? "bg-brutal-lime shadow-brutal" : "bg-(--color-brutal-red)/10 shadow-brutal-sm"
+        success ? "bg-(--color-bg-alt) text-(--color-ink) shadow-brutal-lg" : "bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn shadow-brutal-lg"
       }`}
     >
       <button
@@ -28,7 +36,7 @@ function IterationCard({ item }: { item: IterationResult }) {
       >
         {/* Number badge */}
         <div className={`shrink-0 w-9 h-9 border-brutal-2 flex items-center justify-center font-display text-xs ${
-          success ? "bg-(--color-ink) text-white" : "bg-white text-(--color-ink)"
+          success ? badgeColor : "bg-(--color-destructive) text-(--color-ink)"
         }`}>
           {String(item.iteration).padStart(2, "0")}
         </div>
@@ -43,11 +51,11 @@ function IterationCard({ item }: { item: IterationResult }) {
             ) : (
               <PixelCross size={16} />
             )}
-            <span className={`font-mono text-xs font-bold ${success ? "text-(--color-ink)" : "text-(--color-brutal-red)"}`}>
+            <span className="font-mono text-xs font-bold">
               {success ? `HTTP ${item.http_code}` : item.error_message ?? "FAILED"}
             </span>
             {item.tokens_used > 0 && (
-              <span className="text-xs text-ink-soft">
+              <span className="text-xs text-current">
                 · {item.tokens_used} tokens{item.retries > 0 ? ` · ${item.retries} retry${item.retries > 1 ? "s" : ""}` : ""}
               </span>
             )}
@@ -65,7 +73,7 @@ function IterationCard({ item }: { item: IterationResult }) {
             <p className="font-display text-[10px] uppercase mb-2 flex items-center gap-1">
               <PixelRobot size={12} /> Persona
             </p>
-            <p className="font-mono text-sm whitespace-pre-wrap leading-relaxed border-brutal-2 bg-white p-3">
+            <p className="font-mono text-sm whitespace-pre-wrap leading-relaxed border-brutal-2 bg-(--color-bg-alt) p-3">
               {item.persona_text}
             </p>
           </div>
@@ -74,16 +82,16 @@ function IterationCard({ item }: { item: IterationResult }) {
               <p className="font-display text-[10px] uppercase mb-2">Jawaban</p>
               <div className="space-y-1.5">
                 {Object.entries(item.answers).map(([key, val]) => (
-                  <div key={key} className="flex gap-2 text-sm border-brutal-2 bg-white p-2">
-                    <span className="text-(--color-mute) font-mono text-xs shrink-0 pt-0.5">{key.replace("entry.", "#")}</span>
-                    <span className="font-medium">{Array.isArray(val) ? val.join(", ") : val}</span>
+                  <div key={key} className="grid grid-cols-[6.5rem_1fr] gap-3 text-sm border-brutal-2 bg-(--color-bg-alt) p-2 max-[420px]:grid-cols-1 max-[420px]:gap-1">
+                    <span className="text-(--color-ink-soft) font-mono text-xs shrink-0 pt-0.5">{key.replace("entry.", "#")}</span>
+                    <span className="font-medium min-w-0 wrap-break-word">{Array.isArray(val) ? val.map(String).join(", ") : String(val ?? "")}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
           {item.error_message && (
-            <div className="font-mono text-xs border-brutal bg-(--color-brutal-red) text-white px-3 py-2">
+            <div className="font-mono text-xs border-brutal bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn px-3 py-2">
               {item.error_message}
             </div>
           )}
@@ -109,17 +117,17 @@ export function BatchResultStep({ result, onReset }: BatchResultStepProps) {
       <div className="lg:col-span-8 space-y-4">
         {/* Big Result Card */}
         <Card tone={allSuccess ? "lime" : allFail ? "cream" : "yellow"}>
-          <CardContent className="p-6 md:p-8">
-            <div className="flex flex-col md:flex-row items-center gap-6">
+          <CardContent className="p-4 min-[380px]:p-5 md:p-8">
+            <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
               {/* Big status icon */}
               <div
-                className={`border-brutal-4 p-4 shadow-brutal gpu ${
-                  allSuccess ? "bg-brutal-lime" : allFail ? "bg-(--color-brutal-red)" : "bg-white"
+                className={`border-brutal-4 p-3 min-[380px]:p-4 shadow-brutal gpu ${
+                  allSuccess ? "bg-(--color-bg-alt) text-(--color-ink)" : allFail ? "bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn" : "bg-(--color-bg-alt) text-(--color-ink) bg-pixel-dots"
                 }`}
                 style={{ animation: "var(--animate-bob)" }}
               >
                 {allSuccess ? (
-                  <Trophy className="w-12 h-12 text-(--color-ink)" strokeWidth={2} />
+                  <Trophy className="w-12 h-12" strokeWidth={2} />
                 ) : allFail ? (
                   <PixelCross size={48} />
                 ) : (
@@ -127,31 +135,26 @@ export function BatchResultStep({ result, onReset }: BatchResultStepProps) {
                 )}
               </div>
 
-              <div className="flex-1 text-center md:text-left">
-                <div className="font-display text-xs mb-2 flex items-center justify-center md:justify-start gap-2">
-                  <span className={`bg-(--color-ink) text-white px-2 py-0.5 ${allSuccess ? "text-brutal-lime" : ""}`}>
-                    {allSuccess ? "MISSION COMPLETE" : allFail ? "ALL FAILED" : "PARTIAL SUCCESS"}
-                  </span>
-                </div>
-                <h2 className="font-display text-lg md:text-xl leading-tight">
+              <div className="flex-1 min-w-0 text-center md:text-left">
+                <h2 className="font-display text-base min-[380px]:text-lg md:text-xl leading-tight wrap-break-word">
                   {allSuccess ? "SELESAI!" : allFail ? "SEMUA GAGAL" : `${result.success_count}/${result.count} BERHASIL`}
                 </h2>
-                <p className="font-mono text-xs mt-2 text-ink-soft">
+                <p className="font-mono text-xs mt-2 text-current wrap-break-word">
                   {result.form_title || "Google Form Submission"}
                 </p>
               </div>
 
               {/* Success rate badge */}
-              <div className={`border-brutal shadow-brutal px-6 py-4 text-center min-w-25 ${
-                allSuccess ? "bg-brutal-lime" : allFail ? "bg-(--color-brutal-red) text-white" : "bg-white"
+              <div className={`border-brutal shadow-brutal px-4 min-[380px]:px-6 py-4 text-center w-full min-[380px]:w-auto min-w-0 min-[380px]:min-w-25 ${
+                allSuccess ? "bg-(--color-bg-alt) text-(--color-ink)" : allFail ? "bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn" : "bg-(--color-bg-alt) text-(--color-ink) bg-pixel-dots"
               }`}>
-                <div className="font-display text-3xl">{successRate}%</div>
+                <div className="font-display text-2xl min-[380px]:text-3xl">{successRate}%</div>
                 <div className="font-mono text-[8px] uppercase tracking-widest">rate</div>
               </div>
             </div>
 
             {/* Chunky stats row */}
-            <div className="grid grid-cols-3 gap-3 mt-6">
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-3 gap-3 mt-6">
               <StatBlock
                 label="TOTAL"
                 value={String(result.count).padStart(2, "0")}
@@ -172,28 +175,28 @@ export function BatchResultStep({ result, onReset }: BatchResultStepProps) {
         </Card>
 
         {/* Export actions */}
-        <Card tone="cream" flat>
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button onClick={() => exportBatchCsv(result)} variant="secondary" size="lg" className="flex-1">
-                <Download className="w-5 h-5" strokeWidth={3} />
-                EXPORT CSV
+        <Card tone="cream">
+          <CardContent className="p-3 min-[380px]:p-4">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+              <Button onClick={() => exportBatchCsv(result)} variant="secondary" size="lg" className="w-full sm:flex-1 sm:min-w-40 whitespace-nowrap">
+                <Download className="w-5 h-5 shrink-0" strokeWidth={3} />
+                <span className="truncate">EXPORT CSV</span>
               </Button>
-              <Button onClick={() => exportBatchJson(result)} variant="outline" size="lg" className="flex-1">
-                <FileJson className="w-5 h-5" strokeWidth={3} />
-                EXPORT JSON
+              <Button onClick={() => exportBatchJson(result)} variant="outline" size="lg" className="w-full sm:flex-1 sm:min-w-40 whitespace-nowrap">
+                <FileJson className="w-5 h-5 shrink-0" strokeWidth={3} />
+                <span className="truncate">EXPORT JSON</span>
               </Button>
-              <Button onClick={() => exportBatchExcel(result)} variant="outline" size="lg" className="flex-1">
-                <FileSpreadsheet className="w-5 h-5" strokeWidth={3} />
-                EXPORT EXCEL
+              <Button onClick={() => exportBatchExcel(result)} variant="outline" size="lg" className="w-full sm:flex-1 sm:min-w-40 whitespace-nowrap">
+                <FileSpreadsheet className="w-5 h-5 shrink-0" strokeWidth={3} />
+                <span className="truncate">EXPORT EXCEL</span>
               </Button>
             </div>
           </CardContent>
         </Card>
 
         {/* Terminal log */}
-        <Card tone="cream" flat>
-          <CardContent className="p-4 font-mono text-xs space-y-1">
+        <Card tone="cream">
+          <CardContent className="p-3 min-[380px]:p-4 font-mono text-xs space-y-1 overflow-hidden">
             <div className="flex items-center gap-2 border-b-2 border-dashed border-(--color-ink) pb-2 mb-2">
               <Terminal className="w-4 h-4" />
               <span className="font-bold uppercase tracking-widest">Batch Log</span>
@@ -202,19 +205,19 @@ export function BatchResultStep({ result, onReset }: BatchResultStepProps) {
               </Badge>
             </div>
             <div className="flex gap-3">
-              <span className="text-(--color-brutal-pink)">{">"}</span>
+              <span className="text-current">{">"}</span>
               <span>Session ID: {result.session_id}</span>
             </div>
             <div className="flex gap-3">
-              <span className="text-(--color-brutal-pink)">{">"}</span>
+              <span className="text-current">{">"}</span>
               <span>Total requests: {result.count}</span>
             </div>
             <div className="flex gap-3">
-              <span className="text-(--color-brutal-pink)">{">"}</span>
-              <span>Success: {result.success_count} | Fail: {result.fail_count}</span>
+              <span className="text-current">{">"}</span>
+              <span className="wrap-break-word">Success: {result.success_count} | Fail: {result.fail_count}</span>
             </div>
             <div className="flex gap-3">
-              <span className="text-(--color-brutal-pink)">{">"}</span>
+              <span className="text-current">{">"}</span>
               <span>Success rate: {successRate}%</span>
             </div>
           </CardContent>
@@ -222,7 +225,7 @@ export function BatchResultStep({ result, onReset }: BatchResultStepProps) {
 
         {/* Per-iteration results */}
         <div className="space-y-2">
-          <h3 className="font-display text-xs uppercase tracking-widest mb-3 flex items-center gap-2">
+          <h3 className="font-display text-[10px] min-[380px]:text-xs uppercase tracking-widest mb-3 flex items-center gap-2 wrap-break-word">
             <PixelRobot size={16} />
             Detail Per-Persona ({result.results.length})
           </h3>
@@ -244,10 +247,9 @@ export function BatchResultStep({ result, onReset }: BatchResultStepProps) {
        * SIDEBAR — desktop only
        * ========================================================= */}
       <aside className="hidden lg:flex lg:col-span-4 flex-col gap-4">
-        <Card tone="violet">
+        <Card tone="white" className="bg-(--color-candy-blush)">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <PixelHeart size={20} />
               QUICK STATS
             </CardTitle>
           </CardHeader>
@@ -261,24 +263,15 @@ export function BatchResultStep({ result, onReset }: BatchResultStepProps) {
         </Card>
 
         {/* Tips card */}
-        <div className="border-brutal bg-(--color-brutal-yellow) shadow-brutal-lg p-4 gpu" style={{ animation: "var(--animate-bob)" }}>
+        <div className="border-brutal bg-(--color-candy-peach) text-(--color-ink) shadow-brutal-lg p-4 gpu" style={{ animation: "var(--animate-bob)" }}>
           <div className="font-display text-[10px] mb-2 flex items-center gap-2">
             <PixelStar size={16} /> TIP
           </div>
           <div className="font-mono text-xs leading-relaxed">
             {allSuccess
-              ? "Semua berhasil! Data sudah tersimpan di Google Form."
-              : "Ada yang gagal? Coba periksa koneksi atau status form (mungkin sudah closed)."}
+              ? "Review hasilnya, lalu export CSV/JSON/Excel kalau data perlu disimpan lokal."
+              : "Cek detail error di tiap persona, lalu coba ulangi hanya setelah koneksi dan status form aman."}
           </div>
-        </div>
-
-        {/* Big decorative block */}
-        <div className="border-brutal bg-white shadow-brutal-lg p-6 flex items-center justify-center">
-          {allSuccess ? (
-            <PixelHeart size={64} />
-          ) : (
-            <PixelRobot size={64} />
-          )}
         </div>
       </aside>
 
@@ -295,15 +288,15 @@ export function BatchResultStep({ result, onReset }: BatchResultStepProps) {
 
 function StatBlock({ label, value, tone }: { label: string; value: string; tone: "white" | "lime" | "red" }) {
   const toneBg = {
-    white: "bg-white",
-    lime: "bg-brutal-lime",
-    red: "bg-(--color-brutal-red) text-white",
+    white: "bg-(--color-bg-alt) text-(--color-ink)",
+    lime: "bg-(--color-bg-alt) text-(--color-ink)",
+    red: "bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn",
   }[tone]
 
   return (
-    <div className={`border-brutal shadow-brutal-sm p-3 text-center gpu ${toneBg}`}>
+    <div className={`min-w-0 border-brutal shadow-brutal-sm p-3 text-center gpu ${toneBg}`}>
       <div className="font-display text-2xl md:text-3xl tabular-nums">{value}</div>
-      <div className="font-mono text-[10px] uppercase tracking-widest font-bold mt-1">{label}</div>
+      <div className="font-mono text-[9px] min-[380px]:text-[10px] uppercase tracking-widest font-bold mt-1 truncate">{label}</div>
     </div>
   )
 }

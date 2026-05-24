@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import create_db_and_tables
-from app.routes import parse, generate, submit, personas, batch
+from app.routes import parse, generate, submit, personas, batch, auth
 from app.config import get_settings
 
 
@@ -32,6 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(parse.router)
 app.include_router(generate.router)
 app.include_router(submit.router)

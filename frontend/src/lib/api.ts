@@ -1,4 +1,17 @@
 const BASE = "http://127.0.0.1:8000"
+const TOKEN_KEY = "vareva_auth_token"
+
+export function getAuthToken() {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function setAuthToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+export function clearAuthToken() {
+  localStorage.removeItem(TOKEN_KEY)
+}
 
 export type QuestionType =
   | "SHORT_ANSWER"
@@ -48,8 +61,8 @@ export interface GenerateResponse {
 export interface SubmitResponse {
   status: string
   http_code: number
-  session_id?: number
-  log_id?: number
+  session_id?: string
+  log_id?: string
   error_message?: string | null
 }
 
@@ -61,12 +74,12 @@ export interface IterationResult {
   retries: number
   submit_status: string
   http_code: number
-  log_id?: number | null
+  log_id?: string | null
   error_message?: string | null
 }
 
 export interface BatchRunResponse {
-  session_id: number
+  session_id: string
   form_title: string
   count: number
   success_count: number
@@ -76,12 +89,39 @@ export interface BatchRunResponse {
 
 export interface ParseResponse {
   schema_: FormSchema
-  session_id: number
+  session_id: string
   form_id?: string
   title?: string
   description?: string | null
   fields?: FormField[]
   page_count?: number
+}
+
+export interface AuthUser {
+  id: string
+  name: string
+  email: string
+}
+
+export interface AuthResponse {
+  token: string
+  user: AuthUser
+}
+
+export interface ProfileHistoryItem {
+  form_url: string
+  form_title: string
+  session_count: number
+  submission_count: number
+  persona_count: number
+  last_activity_at: string
+}
+
+export interface DeleteFormHistoryResponse {
+  deleted_sessions: number
+  deleted_form_schemas: number
+  deleted_submission_logs: number
+  deleted_generated_persona_logs: number
 }
 
 export interface SSELogEvent {
@@ -121,10 +161,12 @@ export interface SSEErrorEvent {
 export type SSEEvent = SSELogEvent | SSEProviderEvent | SSEIterationResultEvent | SSECompleteEvent | SSEErrorEvent
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getAuthToken()
   const response = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   })
@@ -145,7 +187,7 @@ function normalizeParseResponse(data: FormSchema | ParseResponse): ParseResponse
 
   return {
     schema_: data,
-    session_id: 0,
+    session_id: "",
     form_id: data.form_id,
     title: data.title,
     description: data.description,
@@ -155,6 +197,57 @@ function normalizeParseResponse(data: FormSchema | ParseResponse): ParseResponse
 }
 
 export const api = {
+  async register(name: string, email: string, password: string): Promise<AuthResponse> {
+    const result = await requestJson<AuthResponse>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password }),
+    })
+    setAuthToken(result.token)
+    return result
+  },
+
+  async login(email: string, password: string): Promise<AuthResponse> {
+    const result = await requestJson<AuthResponse>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    })
+    setAuthToken(result.token)
+    return result
+  },
+
+  async me(): Promise<AuthUser> {
+    const result = await requestJson<{ user: AuthUser }>("/api/auth/me")
+    return result.user
+  },
+
+  async updateProfile(name: string, email: string): Promise<AuthResponse> {
+    const result = await requestJson<AuthResponse>("/api/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify({ name, email }),
+    })
+    setAuthToken(result.token)
+    return result
+  },
+
+  async changePassword(current_password: string, new_password: string): Promise<void> {
+    await requestJson<{ user: AuthUser }>("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password }),
+    })
+  },
+
+  async getProfileHistory(): Promise<ProfileHistoryItem[]> {
+    const result = await requestJson<{ items: ProfileHistoryItem[] }>("/api/auth/history")
+    return result.items
+  },
+
+  async deleteFormHistory(form_url: string): Promise<DeleteFormHistoryResponse> {
+    return requestJson<DeleteFormHistoryResponse>("/api/auth/history/delete", {
+      method: "POST",
+      body: JSON.stringify({ form_url }),
+    })
+  },
+
   async parse(url: string): Promise<ParseResponse> {
     const data = await requestJson<FormSchema | ParseResponse>("/api/parse/", {
       method: "POST",
@@ -173,7 +266,7 @@ export const api = {
   async submit(
     form_url: string,
     answers: Record<string, unknown>,
-    session_id = 0,
+    session_id = "",
     page_count = 1,
   ): Promise<SubmitResponse> {
     return requestJson<SubmitResponse>("/api/submit/", {
@@ -201,6 +294,7 @@ export async function batchRunStream(
     headers: {
       "Accept": "text/event-stream",
       "Content-Type": "application/json",
+      ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
     },
     body: JSON.stringify({ form_url, count, skip_submit }),
   })

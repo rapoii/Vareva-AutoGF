@@ -3,18 +3,18 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-[4px] border-brutal-2 px-2 py-0.5 text-[10px] md:text-xs font-bold uppercase tracking-wide text-[var(--color-ink)]",
+  "inline-flex items-center gap-1 rounded-[4px] border-brutal-2 px-2 py-0.5 text-[10px] md:text-xs font-bold uppercase tracking-wide",
   {
     variants: {
       variant: {
-        default: "bg-[var(--color-brutal-yellow)]",
-        secondary: "bg-[var(--color-brutal-pink)]",
-        accent: "bg-[var(--color-brutal-blue)] text-white",
-        destructive: "bg-[var(--color-brutal-red)] text-white",
-        outline: "bg-white",
-        success: "bg-[var(--color-brutal-lime)]",
-        warning: "bg-[var(--color-brutal-orange)]",
-        violet: "bg-[var(--color-brutal-violet)]",
+        default: "bg-(--color-bg-alt) text-(--color-ink)",
+        secondary: "bg-(--color-candy-blush) text-(--color-ink)",
+        accent: "bg-(--color-brutal-yellow) text-(--color-ink)",
+        destructive: "bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn",
+        outline: "bg-(--color-surface) text-(--color-ink)",
+        success: "bg-(--color-candy-mint) text-(--color-ink)",
+        warning: "bg-(--color-candy-peach) text-(--color-ink) bg-stripe-warn",
+        violet: "bg-(--color-candy-lavender) text-(--color-ink) bg-checker-pink",
       },
     },
     defaultVariants: {

@@ -4,19 +4,18 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  // Neobrutalism core: hard border, hard shadow, GPU press animation
-  "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[6px] font-bold uppercase tracking-wide select-none border-brutal text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--color-brutal-blue)] disabled:pointer-events-none disabled:opacity-60 disabled:saturate-50 press gpu",
+  "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-bold uppercase tracking-wide select-none border-brutal focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-(--color-ring) disabled:pointer-events-none disabled:border-dashed disabled:shadow-none disabled:bg-(--color-mute) disabled:text-(--color-ink-soft) press gpu",
   {
     variants: {
       variant: {
-        default: "bg-[var(--color-brutal-yellow)] shadow-brutal",
-        destructive: "bg-[var(--color-brutal-red)] text-white shadow-brutal",
-        outline: "bg-white shadow-brutal-sm hover:bg-[var(--color-brutal-yellow)]",
-        secondary: "bg-[var(--color-brutal-pink)] shadow-brutal",
-        accent: "bg-[var(--color-brutal-blue)] text-white shadow-brutal",
-        success: "bg-[var(--color-brutal-lime)] shadow-brutal",
-        ghost: "border-transparent shadow-none hover:bg-[var(--color-muted)]",
-        link: "border-transparent shadow-none underline underline-offset-4 hover:text-[var(--color-brutal-pink)]",
+        default: "bg-(--color-brutal-pink) text-(--color-ink) shadow-brutal hover:bg-(--color-candy-blush)",
+        destructive: "bg-(--color-destructive) text-(--color-destructive-foreground) shadow-brutal bg-stripe-warn hover:bg-(--color-bg-alt) hover:text-(--color-destructive)",
+        outline: "bg-(--color-bg-alt) text-(--color-ink) shadow-brutal-sm hover:bg-(--color-candy-blush)",
+        secondary: "bg-(--color-bg-alt) text-(--color-ink) shadow-brutal hover:bg-(--color-candy-blush)",
+        accent: "bg-(--color-brutal-yellow) text-(--color-ink) shadow-brutal hover:bg-(--color-candy-cream)",
+        success: "bg-(--color-candy-mint) text-(--color-ink) shadow-brutal hover:bg-(--color-bg-alt)",
+        ghost: "border-transparent text-current shadow-none hover:bg-(--color-bg-alt) hover:text-(--color-ink)",
+        link: "border-transparent text-current shadow-none underline underline-offset-4 hover:bg-(--color-bg-alt) hover:text-(--color-ink)",
       },
       size: {
         default: "h-11 px-5 py-2 text-sm",

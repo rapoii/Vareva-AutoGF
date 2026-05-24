@@ -1,17 +1,17 @@
-import json
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.db import SessionDep
-from app.models.session import FormSession
-from app.models.form_schema import FormSchemaRecord
+from app.core.auth import get_current_user
 from app.core.parser import parse_form
+from app.core.storage.models import StoredUser
+from app.core.storage.service import AppStorage
+from app.db import SessionDep
 from app.schemas.form import ParseRequest, ParseResponse
 
 router = APIRouter(prefix="/api/parse", tags=["parse"])
 
 
 @router.post("/", response_model=ParseResponse)
-def parse_google_form(req: ParseRequest, session: SessionDep):
+def parse_google_form(req: ParseRequest, session: SessionDep, user: StoredUser = Depends(get_current_user)):
     try:
         schema = parse_form(req.url)
     except ValueError as e:
@@ -19,16 +19,15 @@ def parse_google_form(req: ParseRequest, session: SessionDep):
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    db_session = FormSession(form_url=req.url, status="parsed")
-    session.add(db_session)
-    session.commit()
-    session.refresh(db_session)
-
-    schema_record = FormSchemaRecord(
-        session_id=db_session.id,
-        schema_data=json.dumps(schema.model_dump()),
+    storage = AppStorage(session)
+    stored_session = storage.create_session(
+        form_url=req.url,
+        count=1,
+        status="parsed",
+        user_id=user.id,
+        form_title=schema.title,
+        mode="review",
     )
-    session.add(schema_record)
-    session.commit()
+    storage.save_form_schema(stored_session.id, req.url, schema.model_dump_json(), user_id=user.id)
 
-    return ParseResponse(schema_=schema, session_id=db_session.id)
+    return ParseResponse(schema_=schema, session_id=stored_session.id)

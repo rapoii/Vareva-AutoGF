@@ -4,13 +4,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PixelRobot, PixelStar, PixelCheck, PixelCross, PixelBolt } from "@/components/PixelDecor"
+import { PixelStar, PixelCheck, PixelCross, PixelBolt } from "@/components/PixelDecor"
 import { api, type FormSchema, type GenerateResponse, type SubmitResponse } from "@/lib/api"
 import { getAnswerWarnings } from "@/lib/reviewQuality"
 
 interface ReviewSubmitStepProps {
   schema: FormSchema
-  sessionId: number
+  sessionId: string
   formUrl: string
   generateResults: GenerateResponse[]
   systemLogs?: string[]
@@ -21,7 +21,12 @@ interface ReviewSubmitStepProps {
 export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, systemLogs = [], onBack, onReset }: ReviewSubmitStepProps) {
   // State for each persona's answers
   const [allAnswers, setAllAnswers] = useState<Record<string, string | string[]>[]>(
-    generateResults.map((r) => r.answers)
+    generateResults.map((r) => Object.fromEntries(
+      Object.entries(r.answers).map(([key, value]) => [
+        key,
+        Array.isArray(value) ? value.map(String) : String(value ?? ""),
+      ])
+    ))
   )
   const [activeIndex, setActiveIndex] = useState(0)
   const [editingKey, setEditingKey] = useState<string | null>(null)
@@ -78,7 +83,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
           status: "error",
           http_code: 0,
           session_id: sessionId,
-          log_id: 0,
+          log_id: "0",
           error_message: e instanceof Error ? e.message : "Gagal mengirim",
         })
       }
@@ -102,7 +107,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
               <div className="flex flex-col md:flex-row items-center gap-6">
                 <div
                   className={`border-brutal-4 p-4 shadow-brutal gpu ${
-                    allSuccess ? "bg-brutal-lime" : "bg-(--color-brutal-red)"
+                    allSuccess ? "bg-(--color-bg-alt) text-(--color-ink)" : "bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn"
                   }`}
                   style={{ animation: "var(--animate-bob)" }}
                 >
@@ -111,14 +116,14 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
 
                 <div className="flex-1 text-center md:text-left">
                   <div className="font-display text-xs mb-2 flex items-center justify-center md:justify-start gap-2">
-                    <span className="bg-(--color-ink) text-white px-2 py-0.5">
+                    <span className="bg-(--color-ink) text-(--color-brutal-pink) px-2 py-0.5">
                       {allSuccess ? "SUBMITTED" : "PARTIAL FAIL"}
                     </span>
                   </div>
                   <h2 className="font-display text-lg md:text-xl leading-tight">
                     {allSuccess ? "SEMUA BERHASIL DIKIRIM!" : `${successCount}/${submitResults.length} BERHASIL`}
                   </h2>
-                  <p className="font-mono text-xs mt-2 text-ink-soft">
+                  <p className="font-mono text-xs mt-2 text-(--color-ink-soft)">
                     {allSuccess
                       ? "Semua pengisian berhasil disubmit ke Google Form."
                       : `${failCount} gagal — cek detail di bawah.`}
@@ -126,7 +131,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
                 </div>
 
                 <div className={`border-brutal shadow-brutal px-6 py-4 text-center min-w-25 ${
-                  allSuccess ? "bg-brutal-lime" : "bg-white"
+                  allSuccess ? "bg-(--color-bg-alt) text-(--color-ink)" : "bg-(--color-bg-alt) text-(--color-ink) bg-pixel-dots"
                 }`}>
                   <div className="font-display text-3xl">{Math.round((successCount / submitResults.length) * 100)}%</div>
                   <div className="font-mono text-[8px] uppercase tracking-widest">rate</div>
@@ -134,15 +139,15 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
               </div>
 
               <div className="grid grid-cols-3 gap-3 mt-6">
-                <div className="border-brutal bg-white shadow-brutal-sm p-3 text-center">
+                <div className="border-brutal bg-(--color-bg-alt) shadow-brutal-sm p-3 text-center">
                   <div className="font-display text-2xl">{submitResults.length}</div>
                   <div className="font-mono text-[10px] uppercase font-bold">Total</div>
                 </div>
-                <div className="border-brutal bg-brutal-lime shadow-brutal-sm p-3 text-center">
+                <div className="border-brutal bg-(--color-bg-alt) text-(--color-ink) shadow-brutal-sm p-3 text-center">
                   <div className="font-display text-2xl">{successCount}</div>
                   <div className="font-mono text-[10px] uppercase font-bold">Success</div>
                 </div>
-                <div className={`border-brutal shadow-brutal-sm p-3 text-center ${failCount > 0 ? "bg-(--color-brutal-red) text-white" : "bg-white"}`}>
+                <div className={`border-brutal shadow-brutal-sm p-3 text-center ${failCount > 0 ? "bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn" : "bg-(--color-bg-alt) text-(--color-ink)"}`}>
                   <div className="font-display text-2xl">{failCount}</div>
                   <div className="font-mono text-[10px] uppercase font-bold">Fail</div>
                 </div>
@@ -180,9 +185,9 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
                 disabled={submitting}
                 className={`press border-brutal px-4 py-2 text-sm font-display gpu whitespace-nowrap ${
                   activeIndex === idx
-                    ? "bg-(--color-brutal-pink) shadow-brutal"
-                    : "bg-white shadow-brutal-sm hover:bg-(--color-brutal-yellow)"
-                } disabled:opacity-50`}
+                    ? "bg-(--color-primary) text-(--color-primary-foreground) shadow-brutal"
+                    : "bg-(--color-bg-alt) text-(--color-ink) shadow-brutal-sm hover:bg-(--color-candy-blush) hover:text-(--color-ink)"
+                } disabled:border-dashed disabled:shadow-none`}
               >
                 <span className="font-display text-xs">P{idx + 1}</span>
               </button>
@@ -199,7 +204,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
                   <Eye className="w-5 h-5" strokeWidth={3} />
                   REVIEW PERSONA {activeIndex + 1}/{generateResults.length}
                 </CardTitle>
-                <div className="font-mono text-xs mt-1 text-ink-soft flex items-center gap-2">
+                <div className="font-mono text-xs mt-1 text-(--color-ink-soft) flex items-center gap-2">
                   <span>Tokens: {activeResult?.tokens_used ?? 0}</span>
                   <span className="w-1 h-1 bg-(--color-ink)" />
                   <span>{Object.keys(getActiveAnswers()).length} answers</span>
@@ -226,24 +231,24 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
                   key={field.entry_id}
                   className={`press border-brutal gpu transition-all ${
                     isEditing
-                      ? "bg-(--color-brutal-yellow) shadow-brutal"
+                      ? "bg-(--color-primary) text-(--color-primary-foreground) shadow-brutal"
                       : warnings.length > 0
-                        ? "bg-(--color-brutal-yellow) shadow-brutal-sm"
-                        : "bg-white shadow-brutal-sm"
+                        ? "bg-(--color-bg-alt) text-(--color-ink) bg-stripe-warn shadow-brutal-sm"
+                        : "bg-(--color-bg-alt) text-(--color-ink) shadow-brutal-sm"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2 p-3">
                     <div className="flex-1 min-w-0">
                       {/* Question label */}
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="font-display text-[10px] bg-(--color-ink) text-white px-1.5 py-0.5">
+                        <span className="font-display text-[10px] bg-(--color-ink) text-(--color-brutal-pink) px-1.5 py-0.5">
                           {String(i + 1).padStart(2, "0")}
                         </span>
                         <span className="text-sm font-bold leading-tight">
                           {field.question_text}
                         </span>
                         {field.required && (
-                          <span className="text-(--color-brutal-red) text-xs">*</span>
+                          <span className="border-brutal-2 bg-(--color-primary) px-1 text-[10px] text-(--color-primary-foreground)">REQ</span>
                         )}
                         {warnings.length > 0 && (
                           <Badge variant="warning" className="text-[10px]">
@@ -274,7 +279,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
                         <div className="border-brutal-2 bg-muted px-3 py-2 text-sm font-mono">
                           <span className="font-bold">{displayVal}</span>
                           {hasOtherDetail && (
-                            <span className="text-(--color-brutal-blue) ml-2">
+                            <span className="ml-2 border-brutal-2 bg-(--color-bg-alt) px-1 text-(--color-ink)">
                               → {otherVal}
                             </span>
                           )}
@@ -283,7 +288,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
                       {warnings.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {warnings.map((warning) => (
-                            <div key={warning} className="font-mono text-xs font-bold text-(--color-brutal-red)">
+                            <div key={warning} className="font-mono text-xs font-bold border-brutal-2 bg-(--color-primary) px-2 py-1 text-(--color-primary-foreground)">
                               ! {warning}
                             </div>
                           ))}
@@ -295,7 +300,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
                     {!isEditing && (
                       <button
                         onClick={() => startEdit(field.entry_id)}
-                        className="press border-brutal-2 w-9 h-9 flex items-center justify-center bg-white hover:bg-(--color-brutal-yellow) shrink-0"
+                        className="press border-brutal-2 w-9 h-9 flex items-center justify-center bg-(--color-bg-alt) text-(--color-ink) hover:bg-(--color-candy-blush) hover:text-(--color-ink) shrink-0"
                         title="Edit answer"
                       >
                         <Pencil className="w-4 h-4" strokeWidth={3} />
@@ -311,7 +316,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
         {/* Error banner */}
         {error && (
           <div
-            className="border-brutal bg-(--color-brutal-red) text-white shadow-brutal flex items-start gap-3 p-4"
+            className="border-brutal bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn shadow-brutal flex items-start gap-3 p-4"
             style={{ animation: "var(--animate-glitch)" }}
           >
             <XCircle className="w-5 h-5 shrink-0 mt-0.5" strokeWidth={3} />
@@ -324,7 +329,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
           <Card tone="blue">
             <CardContent className="p-4">
               <div className="flex items-center gap-4">
-                <div className="border-brutal bg-white p-2 shadow-brutal-sm">
+                <div className="border-brutal bg-(--color-bg-alt) p-2 shadow-brutal-sm">
                   <Loader2 className="w-6 h-6 gpu motion-safe-loader" />
                 </div>
                 <div className="flex-1">
@@ -333,16 +338,16 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
                     Persona {currentSubmitIndex !== null ? currentSubmitIndex + 1 : 1} of {allAnswers.length}
                   </div>
                 </div>
-                <div className="w-32 border-brutal bg-white p-1 overflow-hidden">
+                <div className="w-32 border-brutal bg-(--color-bg-alt) p-1 overflow-hidden">
                   <div className="h-2 bg-muted relative">
                     <div
-                      className="absolute inset-y-0 left-0 bg-brutal-lime transition-all duration-300"
+                      className="absolute inset-y-0 left-0 bg-(--color-bg-alt) transition-all duration-300"
                       style={{
                         width: `${((currentSubmitIndex !== null ? currentSubmitIndex + 1 : 0) / allAnswers.length) * 100}%`,
                       }}
                     />
                     <div
-                      className="absolute inset-y-0 w-10 bg-white/60 motion-safe-shimmer"
+                      className="absolute inset-y-0 w-10 bg-(--color-bg-alt) motion-safe-shimmer"
                     />
                   </div>
                 </div>
@@ -380,7 +385,7 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
        * RIGHT SIDEBAR — Info & tips (desktop only)
        * ========================================================= */}
       <aside className="hidden lg:flex lg:col-span-4 flex-col gap-4">
-        <Card tone="violet">
+        <Card tone="white" className="bg-(--color-candy-blush)">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
               <Terminal className="w-4 h-4" />
@@ -395,27 +400,29 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
           </CardContent>
         </Card>
 
-        <div className="border-brutal bg-(--color-brutal-yellow) shadow-brutal-lg p-4 gpu" style={{ animation: "var(--animate-bob)" }}>
+        <Card tone="cream">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Terminal className="w-4 h-4" strokeWidth={3} />
+              SYSTEM LOG
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="max-h-40 overflow-y-auto space-y-1 overscroll-contain font-mono text-[11px] leading-relaxed">
+            {(systemLogs.length > 0 ? systemLogs : ["No generation logs available."]).slice(-20).map((log, i) => (
+              <div key={`${i}-${log}`} className="flex gap-2">
+                <span className="shrink-0">&gt;</span>
+                <span>{log}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <div className="border-brutal bg-(--color-candy-peach) text-(--color-ink) shadow-brutal-lg p-4 gpu" style={{ animation: "var(--animate-bob)" }}>
           <div className="font-display text-[10px] mb-2 flex items-center gap-2">
             <PixelStar size={16} /> TIP
           </div>
           <div className="font-mono text-xs leading-relaxed">
-            Click <span className="border-brutal-2 bg-white px-1">✎</span> to edit any answer. All changes are saved locally before submit.
-          </div>
-        </div>
-
-        <div className="border-brutal bg-(--color-ink) text-white shadow-brutal-lg p-4">
-          <div className="font-display text-[10px] mb-3 flex items-center gap-2 text-brutal-lime">
-            <Terminal className="w-4 h-4" strokeWidth={3} />
-            SYSTEM LOG
-          </div>
-          <div className="max-h-40 overflow-y-auto pr-2 space-y-1 overscroll-contain font-mono text-[11px] leading-relaxed">
-            {(systemLogs.length > 0 ? systemLogs : ["No generation logs available."]).slice(-20).map((log, i) => (
-              <div key={`${i}-${log}`} className="flex gap-2">
-                <span className="text-(--color-brutal-pink) shrink-0">&gt;</span>
-                <span className="text-white/90">{log}</span>
-              </div>
-            ))}
+            Click <span className="border-brutal-2 bg-(--color-bg-alt) px-1">✎</span> to edit any answer. All changes are saved locally before submit.
           </div>
         </div>
       </aside>

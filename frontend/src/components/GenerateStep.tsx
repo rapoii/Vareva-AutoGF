@@ -7,7 +7,7 @@ import { api, type FormSchema, type GenerateResponse } from "@/lib/api"
 
 interface GenerateStepProps {
   schema: FormSchema
-  sessionId: number
+  sessionId: string
   personaText: string
   formUrl: string
   onDone: (result: GenerateResponse) => void
@@ -70,7 +70,7 @@ export function GenerateStep({ schema, personaText, onDone, onBack }: GenerateSt
         <CardContent>
           <button
             onClick={() => setSchemaExpanded((v) => !v)}
-            className="flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
+            className="flex items-center gap-1.5 text-sm text-(--color-muted-foreground) hover:text-(--color-ink) transition-colors"
           >
             {schemaExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             {schemaExpanded ? "Sembunyikan" : "Lihat"} semua pertanyaan
@@ -78,19 +78,19 @@ export function GenerateStep({ schema, personaText, onDone, onBack }: GenerateSt
           {schemaExpanded && (
             <div className="mt-4 space-y-3">
               {schema.fields.map((field, i) => (
-                <div key={field.entry_id} className="flex items-start gap-3 py-2 border-b border-[hsl(var(--border))] last:border-0">
-                  <span className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 w-5 shrink-0">{i + 1}</span>
+                <div key={field.entry_id} className="flex items-start gap-3 py-2 border-b border-(--color-border) last:border-0">
+                  <span className="text-xs text-(--color-muted-foreground) mt-0.5 w-5 shrink-0">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium">{field.question_text}</span>
-                      {field.required && <span className="text-red-500 text-xs">*</span>}
+                      {field.required && <span className="border-brutal-2 bg-(--color-primary) px-1 text-[10px] text-(--color-primary-foreground)">REQ</span>}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant={typeColor(field.question_type)} className="text-xs">
                         {typeLabel(field.question_type)}
                       </Badge>
                       {field.options.length > 0 && (
-                        <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                        <span className="text-xs text-(--color-muted-foreground)">
                           {field.options.slice(0, 3).join(", ")}{field.options.length > 3 ? ` +${field.options.length - 3}` : ""}
                         </span>
                       )}
@@ -106,7 +106,7 @@ export function GenerateStep({ schema, personaText, onDone, onBack }: GenerateSt
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Sparkles className="w-5 h-5 text-[hsl(var(--primary))]" />
+            <Sparkles className="w-5 h-5 text-(--color-primary)" />
             Generate Jawaban AI
           </CardTitle>
           <CardDescription>
@@ -117,7 +117,7 @@ export function GenerateStep({ schema, personaText, onDone, onBack }: GenerateSt
       </Card>
 
       {error && (
-        <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div className="border-brutal bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn px-4 py-3 text-sm font-bold">
           {error}
         </div>
       )}
@@ -142,7 +142,7 @@ export function GenerateStep({ schema, personaText, onDone, onBack }: GenerateSt
       </div>
 
       {loading && (
-        <p className="text-center text-sm text-[hsl(var(--muted-foreground))]">
+        <p className="text-center text-sm text-(--color-muted-foreground)">
           Mengirim prompt ke AI dan memvalidasi jawaban...
         </p>
       )}

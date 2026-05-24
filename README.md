@@ -109,8 +109,15 @@ Edit `backend/.env` and add at least one provider key. The full template is in `
 ```env
 OPENROUTER_API_KEY=your-openrouter-api-key-here
 OPENROUTER_MODEL=poolside/laguna-xs.2:free
+OPENROUTER_FALLBACK_MODELS=openrouter/free,google/gemma-3-27b-it:free,google/gemma-3-12b-it:free,meta-llama/llama-3.3-70b-instruct:free,mistralai/mistral-small-3.1-24b-instruct:free,qwen/qwen3-235b-a22b:free,deepseek/deepseek-chat-v3-0324:free
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 DATABASE_URL=sqlite:///./gform.db
+STORAGE_BACKEND=sqlite
+GOOGLE_SHEETS_SCRIPT_URL=your-apps-script-web-app-url
+GOOGLE_SHEETS_SHARED_SECRET=your-shared-secret
+GOOGLE_SHEETS_TIMEOUT_SECONDS=15
+AUTH_SECRET_KEY=change-this-secret-before-deploy
+AUTH_TOKEN_EXPIRE_MINUTES=10080
 LLM_MAX_RETRIES=3
 
 GEMINI_API_KEY=your-gemini-api-key-here
@@ -122,6 +129,8 @@ GROQ_MODEL=llama-3.3-70b-versatile
 CEREBRAS_API_KEY=your-cerebras-api-key-here
 CEREBRAS_MODEL=qwen-3-235b-a22b-instruct-2507
 ```
+
+For Google Sheets storage, follow [docs/GOOGLE_SHEETS_STORAGE.md](docs/GOOGLE_SHEETS_STORAGE.md), then set `STORAGE_BACKEND=google_sheets`.
 
 ### 3. Frontend setup
 

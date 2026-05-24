@@ -20,9 +20,9 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
               <div
                 className={cn(
                   "w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all",
-                  isDone && "bg-[hsl(var(--primary))] border-[hsl(var(--primary))] text-white",
-                  isActive && "bg-white border-[hsl(var(--primary))] text-[hsl(var(--primary))]",
-                  !isDone && !isActive && "bg-white border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]"
+                  isDone && "bg-(--color-candy-mint) border-(--color-ink) text-(--color-ink) shadow-brutal-sm",
+                  isActive && "bg-(--color-candy-blush) border-(--color-primary) text-(--color-ink) shadow-brutal-sm",
+                  !isDone && !isActive && "bg-(--color-surface) border-(--color-candy-blush) text-(--color-muted-foreground)"
                 )}
               >
                 {isDone ? <Check className="w-4 h-4" /> : stepNum}
@@ -30,8 +30,8 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
               <span
                 className={cn(
                   "text-xs font-medium whitespace-nowrap",
-                  isActive && "text-[hsl(var(--primary))]",
-                  !isActive && "text-[hsl(var(--muted-foreground))]"
+                  isActive && "text-(--color-ink)",
+                  !isActive && "text-(--color-ink-soft)"
                 )}
               >
                 {label}
@@ -41,7 +41,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
               <div
                 className={cn(
                   "flex-1 h-0.5 mx-3 mb-5 transition-all",
-                  stepNum < currentStep ? "bg-[hsl(var(--primary))]" : "bg-[hsl(var(--border))]"
+                  stepNum < currentStep ? "bg-(--color-candy-mint)" : "bg-(--color-candy-blush)"
                 )}
               />
             )}

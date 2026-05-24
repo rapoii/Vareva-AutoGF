@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.config.database import DatabaseConfig
 from app.config.ai_providers import AIProviderConfig
+from app.config.storage import StorageConfig
+from app.config.auth import AuthConfig
 
 
 class AppConfig(BaseSettings):
@@ -47,11 +49,43 @@ class AppConfig(BaseSettings):
         """Get AI provider configuration."""
         return AIProviderConfig()
 
+    @property
+    def storage(self) -> StorageConfig:
+        return StorageConfig()
+
+    @property
+    def auth(self) -> AuthConfig:
+        return AuthConfig()
+
     # Backward compatibility properties - Database
     @property
     def database_url(self) -> str:
         """Get database URL (backward compatible)."""
         return self.database.database_url
+
+    @property
+    def storage_backend(self) -> str:
+        return self.storage.storage_backend
+
+    @property
+    def google_sheets_script_url(self) -> str:
+        return self.storage.google_sheets_script_url
+
+    @property
+    def google_sheets_shared_secret(self) -> str:
+        return self.storage.google_sheets_shared_secret
+
+    @property
+    def google_sheets_timeout_seconds(self) -> float:
+        return self.storage.google_sheets_timeout_seconds
+
+    @property
+    def auth_secret_key(self) -> str:
+        return self.auth.auth_secret_key
+
+    @property
+    def auth_token_expire_minutes(self) -> int:
+        return self.auth.auth_token_expire_minutes
 
     # Backward compatibility properties - AI Providers
     @property

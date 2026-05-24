@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Link2, Sparkles, Send, Zap, Eye, Terminal } from "lucide-react"
+import { Link2, Sparkles, Send, Terminal } from "lucide-react"
 import { PixelRobot, PixelStar, PixelSparkle, PixelBolt } from "@/components/PixelDecor"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -25,18 +25,18 @@ const REVIEW_PHASES = [
 export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [], currentProvider = "" }: LoadingStepProps) {
   const shortUrl = formUrl.length > 40 ? formUrl.slice(0, 40) + "…" : formUrl
   const PHASES = reviewMode ? REVIEW_PHASES : AUTO_PHASES
+  const [requestId] = useState(() => String(Math.floor(Math.random() * 9999)).padStart(4, "0"))
   const logs = streamLogs.length > 0
     ? streamLogs
     : [
         "Initializing AI pipeline...",
         "Loading provider chain: Gemini → Groq → Cerebras → OpenRouter",
         `Estimated time: ~${Math.max(15, count * 5)}s`,
-        `Processing request_${String(Math.floor(Math.random() * 9999)).padStart(4, "0")}...`,
+        `Processing request_${requestId}...`,
       ]
 
   // Animated progress through phases
   const [activeIndex, setActiveIndex] = useState(0)
-  const [requestId] = useState(() => String(Math.floor(Math.random() * 9999)).padStart(4, "0"))
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -55,19 +55,19 @@ export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [
        * ========================================================= */}
       <div className="lg:col-span-8 space-y-4">
         {/* Big Status Card */}
-        <Card tone="yellow">
+        <Card tone="white" className="bg-(--color-candy-blush)">
           <CardContent className="p-6 md:p-8">
             <div className="flex flex-col md:flex-row items-center gap-6">
               {/* Pixel Art Robot Spinner */}
               <div
-                className="relative border-brutal bg-white p-4 shadow-brutal gpu"
+                className="relative border-brutal bg-(--color-bg-alt) p-4 shadow-brutal gpu"
                 style={{ animation: "var(--animate-bob)" }}
               >
                 <PixelRobot size={64} />
                 {/* Blinking indicator */}
-                <div className="absolute -top-2 -right-2 w-4 h-4 border-brutal-2 bg-(--color-brutal-pink)" />
+                <div className="absolute -top-2 -right-2 w-4 h-4 border-brutal-2 bg-(--color-primary)" />
                 <div
-                  className="absolute -top-2 -right-2 w-4 h-4 border-brutal-2 bg-brutal-lime"
+                  className="absolute -top-2 -right-2 w-4 h-4 border-brutal-2 bg-(--color-bg-alt)"
                   style={{ animation: "var(--animate-pixel-blink)" }}
                 />
               </div>
@@ -75,20 +75,20 @@ export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [
               <div className="flex-1 text-center md:text-left">
                 <div className="font-display text-xs mb-2 flex items-center justify-center md:justify-start gap-2">
                   <PixelBolt size={16} />
-                  <span className="bg-(--color-ink) text-(--color-brutal-yellow) px-2 py-0.5">
+                  <span className="bg-(--color-bg-alt) text-(--color-ink) border-brutal-2 px-2 py-0.5">
                     PROCESSING
                   </span>
                 </div>
                 <h2 className="font-display text-lg md:text-xl leading-tight">
                   {reviewMode ? "GENERATING ANSWERS..." : `PROCESSING ${count} SUBMISSIONS...`}
                 </h2>
-                <p className="font-mono text-xs mt-2 text-ink-soft truncate">
+                <p className="font-mono text-xs mt-2 text-(--color-ink-soft) truncate">
                   {shortUrl}
                 </p>
               </div>
 
               {/* Count badge */}
-              <div className="border-brutal bg-(--color-brutal-pink) shadow-brutal px-4 py-3 text-center min-w-20">
+              <div className="border-brutal bg-(--color-bg-alt) text-(--color-ink) shadow-brutal px-4 py-3 text-center min-w-20">
                 <div className="font-display text-2xl">{String(count).padStart(2, "0")}</div>
                 <div className="font-mono text-[8px] uppercase tracking-widest">jobs</div>
               </div>
@@ -108,17 +108,17 @@ export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [
                 key={phase.id}
                 className={`press border-brutal p-4 flex items-center gap-4 gpu transition-all ${
                   isActive
-                    ? "bg-brutal-lime shadow-brutal"
+                    ? "bg-(--color-brutal-pink) text-(--color-ink) shadow-brutal"
                     : isDone
-                      ? "bg-white shadow-brutal-sm opacity-70"
-                      : "bg-muted shadow-brutal-sm opacity-50"
+                      ? "bg-(--color-brutal-yellow) text-(--color-ink) shadow-brutal-sm"
+                      : "bg-(--color-bg-alt) text-(--color-ink-soft) border-dashed shadow-brutal-sm"
                 }`}
                 style={{ animation: isActive ? "var(--animate-pop)" : undefined }}
               >
                 {/* Status indicator */}
                 <div
                   className={`w-10 h-10 border-brutal-2 flex items-center justify-center shrink-0 ${
-                    isActive ? "bg-(--color-ink) text-white" : "bg-white"
+                    isActive ? "bg-(--color-ink) text-(--color-brutal-pink)" : "bg-(--color-bg-alt)"
                   }`}
                 >
                   {isDone ? (
@@ -132,14 +132,14 @@ export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [
 
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-sm uppercase tracking-wide">{phase.label}</div>
-                  <div className="font-mono text-xs text-ink-soft truncate">
+                  <div className="font-mono text-xs text-current/75 truncate">
                     {phase.desc}
                   </div>
                 </div>
 
                 {isActive && (
                   <div
-                    className="w-3 h-3 bg-(--color-brutal-pink) border-brutal-2 shrink-0"
+                    className="w-3 h-3 bg-(--color-primary) border-brutal-2 shrink-0"
                     style={{ animation: "var(--animate-pixel-blink)" }}
                   />
                 )}
@@ -155,7 +155,7 @@ export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [
               <Terminal className="w-4 h-4" />
               <span className="font-bold uppercase tracking-widest">System Log</span>
               {currentProvider && (
-                <span className="ml-auto bg-brutal-lime border-brutal-2 px-2 py-0.5 text-[10px] font-bold uppercase">
+                <span className="ml-auto bg-(--color-bg-alt) text-(--color-ink) border-brutal-2 px-2 py-0.5 text-[10px] font-bold uppercase">
                   {currentProvider}
                 </span>
               )}
@@ -163,7 +163,7 @@ export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [
             <div className="max-h-48 overflow-y-auto pr-2 space-y-1 overscroll-contain">
               {logs.map((msg, i) => (
                 <div key={i} className={`flex gap-3 ${i === logs.length - 1 ? "animate-pulse" : ""}`}>
-                  <span className="text-(--color-brutal-pink)">{">"}</span>
+                  <span className="text-current">{">"}</span>
                   <span>{msg}</span>
                 </div>
               ))}
@@ -176,10 +176,9 @@ export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [
        * SIDEBAR — stats & mode info (desktop only)
        * ========================================================= */}
       <aside className="hidden lg:flex lg:col-span-4 flex-col gap-4">
-        <Card tone="violet">
+        <Card tone="white" className="bg-(--color-candy-blush)">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <PixelSparkle size={20} />
               STATUS
             </CardTitle>
           </CardHeader>
@@ -191,7 +190,7 @@ export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [
           </CardContent>
         </Card>
 
-        <div className="border-brutal bg-(--color-brutal-yellow) shadow-brutal-lg p-4 gpu" style={{ animation: "var(--animate-bob)" }}>
+        <div className="border-brutal bg-(--color-candy-cream) text-(--color-ink) shadow-brutal-lg p-4 gpu" style={{ animation: "var(--animate-bob)" }}>
           <div className="font-display text-[10px] mb-2 flex items-center gap-2">
             <PixelStar size={16} /> TIP
           </div>
@@ -202,20 +201,12 @@ export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [
           </div>
         </div>
 
-        {/* Mode icon big */}
-        <div className="border-brutal bg-white shadow-brutal-lg p-6 flex items-center justify-center">
-          {reviewMode ? (
-            <Eye className="w-12 h-12 text-brutal-violet" strokeWidth={2} />
-          ) : (
-            <Zap className="w-12 h-12 text-brutal-lime" strokeWidth={2} />
-          )}
-        </div>
       </aside>
 
       {/* Mobile warning */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t-[3px] border-(--color-ink) bg-(--color-bg) p-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
         <div className="font-mono text-xs text-center">
-          <span className="inline-block w-2 h-2 bg-(--color-brutal-pink) mr-2" style={{ animation: "var(--animate-pixel-blink)" }} />
+          <span className="inline-block w-2 h-2 bg-(--color-bg-alt) mr-2" style={{ animation: "var(--animate-pixel-blink)" }} />
           Processing... Don't close this page.
         </div>
       </div>

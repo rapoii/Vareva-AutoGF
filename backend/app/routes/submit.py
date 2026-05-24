@@ -1,11 +1,11 @@
-import json
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.db import SessionDep
-from app.models.session import FormSession
-from app.models.submission_log import SubmissionLog
+from app.core.auth import get_current_user
+from app.core.storage.models import StoredUser
+from app.core.storage.service import AppStorage
 from app.core.submitter import submit
+from app.db import SessionDep
 from app.schemas.submit import SubmitRequest, SubmitResponse
 
 logger = logging.getLogger(__name__)
@@ -13,33 +13,30 @@ router = APIRouter(prefix="/api/submit", tags=["submit"])
 
 
 @router.post("/", response_model=SubmitResponse)
-def submit_form(req: SubmitRequest, session: SessionDep):
-    db_session = session.get(FormSession, req.session_id)
-    if not db_session:
+def submit_form(req: SubmitRequest, session: SessionDep, user: StoredUser = Depends(get_current_user)):
+    storage = AppStorage(session)
+    if not storage.session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Session {req.session_id} not found")
 
     logger.info(f"Submit received: {len(req.answers)} answers, page_count={req.page_count}")
     logger.debug(f"Answers: {req.answers}")
 
     result = submit(req.form_url, req.answers, page_count=req.page_count)
-
-    log = SubmissionLog(
+    log = storage.append_submission_log(
         session_id=req.session_id,
-        iteration_number=req.iteration_number,
-        answers_used=json.dumps(req.answers),
+        iteration=req.iteration_number,
+        answers=req.answers,
         submit_status=result["status"],
         error_message=result.get("error_message"),
+        form_url=req.form_url,
+        http_code=result["http_code"],
+        user_id=user.id,
     )
-    session.add(log)
-
-    if result["status"] == "success":
-        db_session.success_count += 1
-    else:
-        db_session.fail_count += 1
-    db_session.status = "completed"
-    session.add(db_session)
-    session.commit()
-    session.refresh(log)
+    storage.update_session_result(
+        req.session_id,
+        success_count=1 if result["status"] == "success" else 0,
+        fail_count=0 if result["status"] == "success" else 1,
+    )
 
     return SubmitResponse(
         status=result["status"],

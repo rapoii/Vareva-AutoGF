@@ -9,7 +9,7 @@ import { api, type FormSchema, type Persona } from "@/lib/api"
 
 interface ParseStepProps {
   personas: Persona[]
-  onDone: (schema: FormSchema, sessionId: number, personaText: string, formUrl: string) => void
+  onDone: (schema: FormSchema, sessionId: string, personaText: string, formUrl: string) => void
 }
 
 export function ParseStep({ personas, onDone }: ParseStepProps) {
@@ -20,7 +20,7 @@ export function ParseStep({ personas, onDone }: ParseStepProps) {
   const [error, setError] = useState<string | null>(null)
 
   const selectedPersona = personas.find((p) => p.id === selectedPersonaId)
-  const personaText = selectedPersona ? selectedPersona.system_prompt : customPersona
+  const personaText = selectedPersona?.system_prompt ?? customPersona
 
   async function handleParse() {
     if (!url.trim()) { setError("Masukkan URL Google Form."); return }
@@ -42,7 +42,7 @@ export function ParseStep({ personas, onDone }: ParseStepProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Link2 className="w-5 h-5 text-[hsl(var(--primary))]" />
+            <Link2 className="w-5 h-5 text-(--color-primary)" />
             URL Google Form
           </CardTitle>
           <CardDescription>Masukkan URL Google Form publik yang ingin diisi otomatis</CardDescription>
@@ -62,7 +62,7 @@ export function ParseStep({ personas, onDone }: ParseStepProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <User className="w-5 h-5 text-[hsl(var(--primary))]" />
+            <User className="w-5 h-5 text-(--color-primary)" />
             Persona
           </CardTitle>
           <CardDescription>Pilih persona tersimpan atau tulis persona kustom</CardDescription>
@@ -74,13 +74,13 @@ export function ParseStep({ personas, onDone }: ParseStepProps) {
                 <button
                   key={p.id}
                   onClick={() => {
-                    setSelectedPersonaId(selectedPersonaId === p.id ? null : p.id)
+                    setSelectedPersonaId(selectedPersonaId === p.id ? null : p.id ?? null)
                     setCustomPersona("")
                   }}
                   className={`px-3 py-1.5 rounded-full border text-sm font-medium transition-all ${
                     selectedPersonaId === p.id
-                      ? "bg-[hsl(var(--primary))] text-white border-[hsl(var(--primary))]"
-                      : "bg-white text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]"
+                      ? "bg-(--color-primary) text-(--color-primary-foreground) border-(--color-primary)"
+                      : "bg-(--color-bg-alt) text-(--color-ink) border-(--color-border) hover:border-(--color-primary)"
                   }`}
                 >
                   {p.name}
@@ -90,7 +90,7 @@ export function ParseStep({ personas, onDone }: ParseStepProps) {
           )}
 
           {selectedPersona ? (
-            <div className="rounded-md bg-[hsl(var(--muted))] p-3 text-sm text-[hsl(var(--muted-foreground))] font-mono whitespace-pre-wrap max-h-36 overflow-auto">
+            <div className="rounded-md bg-(--color-muted) p-3 text-sm text-(--color-muted-foreground) font-mono whitespace-pre-wrap max-h-36 overflow-auto">
               {selectedPersona.system_prompt}
             </div>
           ) : (
@@ -110,7 +110,7 @@ export function ParseStep({ personas, onDone }: ParseStepProps) {
       </Card>
 
       {error && (
-        <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div className="border-brutal bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn px-4 py-3 text-sm font-bold">
           {error}
         </div>
       )}
@@ -127,7 +127,7 @@ export function ParseStep({ personas, onDone }: ParseStepProps) {
       </Button>
 
       {loading && (
-        <p className="text-center text-sm text-[hsl(var(--muted-foreground))]">
+        <p className="text-center text-sm text-(--color-muted-foreground)">
           Mengambil struktur form dari Google...
         </p>
       )}
