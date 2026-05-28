@@ -264,6 +264,7 @@ v2/
 - [Environment Variables](docs/ENVIRONMENT.md)
 - [Development Guide](docs/DEVELOPMENT.md)
 - [Production Notes](docs/PRODUCTION.md)
+- [Free Deployment Guide](docs/DEPLOYMENT_FREE.md)
 
 ## Production Notes
 

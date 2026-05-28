@@ -1,6 +1,6 @@
 # Production Notes
 
-This guide lists the main changes to review before running Vareva AutoGF outside local development.
+This guide lists the main changes to review before running Vareva AutoGF outside local development. For the recommended free stack, see [Free Deployment Guide](DEPLOYMENT_FREE.md).
 
 ## Deployment Checklist
 

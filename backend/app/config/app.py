@@ -25,6 +25,7 @@ class AppConfig(BaseSettings):
     app_name: str = "Vareva AutoGF"
     app_version: str = "1.0.0"
     debug: bool = False
+    cors_origins: str = "*"
 
     @field_validator("debug", mode="before")
     @classmethod
@@ -37,6 +38,12 @@ class AppConfig(BaseSettings):
             if normalized in {"0", "false", "no", "n", "off", "release", "production", "prod"}:
                 return False
         return value
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        if not self.cors_origins.strip() or self.cors_origins.strip() == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     # Delegate to modular configs
     @property
