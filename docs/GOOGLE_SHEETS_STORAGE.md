@@ -46,7 +46,7 @@ id | session_id | user_id | form_url | iteration | persona_text | answers_json |
 ### generated_persona_logs
 
 ```text
-id | session_id | user_id | form_url | name | gender | age | occupation | persona_json | created_at
+id | session_id | user_id | form_url | name | gender | age | occupation | economic_class | persona_json | created_at
 ```
 
 ## 3. Buka Apps Script

@@ -8,6 +8,8 @@ from typing import Any
 from app.schemas.answer import Persona
 from app.schemas.form import FormAnalysis, FormSchema, QuestionType
 
+ECONOMIC_CLASS_WHITELIST = {"lower", "middle", "upper"}
+
 OCCUPATION_WHITELIST = {
     "Mahasiswa",
     "Karyawan swasta",
@@ -177,6 +179,9 @@ def validate_persona_quality(persona: Persona, analysis: FormAnalysis | None = N
 
     if persona.occupation not in OCCUPATION_WHITELIST:
         issues.append(f"occupation not whitelisted: {persona.occupation}")
+
+    if persona.economic_class not in ECONOMIC_CLASS_WHITELIST:
+        issues.append(f"economic_class not whitelisted: {persona.economic_class}")
 
     if persona.age < 13 or persona.age > 70:
         issues.append(f"age out of general range: {persona.age}")

@@ -13,5 +13,6 @@ class GeneratedPersonaLog(SQLModel, table=True):
     gender: str
     age: int
     occupation: str
+    economic_class: str = Field(default="middle")
     persona_json: str = Field(description="JSON string of generated persona object")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

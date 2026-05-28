@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link2, Sparkles, Send, Terminal } from "lucide-react"
-import { PixelRobot, PixelStar, PixelSparkle, PixelBolt } from "@/components/PixelDecor"
+import { PixelRobot, PixelStar, PixelBolt } from "@/components/PixelDecor"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface LoadingStepProps {
@@ -12,13 +12,13 @@ interface LoadingStepProps {
 }
 
 const AUTO_PHASES = [
-  { id: "parse", icon: Link2, label: "PARSE STRUCTURE", desc: "Extracting form fields from Google..." },
+  { id: "scan", icon: Link2, label: "LOAD SCAN", desc: "Using scanned form schema..." },
   { id: "generate", icon: Sparkles, label: "GENERATE PERSONA", desc: "Creating Indonesian personas with AI..." },
   { id: "submit", icon: Send, label: "SUBMIT FORMS", desc: "Filling and submitting to Google Forms..." },
 ]
 
 const REVIEW_PHASES = [
-  { id: "parse", icon: Link2, label: "PARSE STRUCTURE", desc: "Extracting form fields from Google..." },
+  { id: "scan", icon: Link2, label: "LOAD SCAN", desc: "Using scanned form schema..." },
   { id: "generate", icon: Sparkles, label: "GENERATE & ANSWER", desc: "AI answering each question..." },
 ]
 
@@ -80,7 +80,7 @@ export function LoadingStep({ count, formUrl, reviewMode = false, streamLogs = [
                   </span>
                 </div>
                 <h2 className="font-display text-lg md:text-xl leading-tight">
-                  {reviewMode ? "GENERATING ANSWERS..." : `PROCESSING ${count} SUBMISSIONS...`}
+                  {reviewMode ? "GENERATING ANSWERS FOR REVIEW..." : `GENERATING & SUBMITTING ${count} ISIAN...`}
                 </h2>
                 <p className="font-mono text-xs mt-2 text-(--color-ink-soft) truncate">
                   {shortUrl}

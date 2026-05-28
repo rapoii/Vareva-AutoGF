@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, Download, FileJson, FileSpreadsheet, RotateCcw,
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PixelRobot, PixelStar, PixelHeart, PixelCheck, PixelCross } from "@/components/PixelDecor"
+import { PixelRobot, PixelStar, PixelCheck, PixelCross } from "@/components/PixelDecor"
 import type { BatchRunResponse, IterationResult } from "@/lib/api"
 import { exportBatchCsv, exportBatchExcel, exportBatchJson } from "@/lib/export"
 

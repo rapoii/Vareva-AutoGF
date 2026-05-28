@@ -1,10 +1,11 @@
 import { useState } from "react"
-import { Link2, Loader2, User } from "lucide-react"
+import { Link2, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { LoadingOverlay } from "@/components/LoadingOverlay"
 import { api, type FormSchema, type Persona } from "@/lib/api"
 
 interface ParseStepProps {
@@ -116,20 +117,14 @@ export function ParseStep({ personas, onDone }: ParseStepProps) {
       )}
 
       <Button onClick={handleParse} disabled={loading} className="w-full" size="lg">
-        {loading ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Parsing form...
-          </>
-        ) : (
-          "Parse Form"
-        )}
+        Parse Form
       </Button>
 
       {loading && (
-        <p className="text-center text-sm text-(--color-muted-foreground)">
-          Mengambil struktur form dari Google...
-        </p>
+        <LoadingOverlay
+          title="PARSE FORM"
+          message="Mengambil struktur form dari Google."
+        />
       )}
     </div>
   )

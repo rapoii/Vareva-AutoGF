@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
@@ -12,6 +13,8 @@ from app.core.storage.service import AppStorage
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
+_login_attempt_lock = Lock()
+_login_attempts: dict[str, dict[str, float | int]] = {}
 
 
 def hash_password(password: str) -> str:
@@ -20,6 +23,42 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return pwd_context.verify(password, password_hash)
+
+
+def _login_cooldown_seconds(failure_count: int) -> int:
+    return max(1, failure_count) * 5
+
+
+def _check_login_cooldown(email: str) -> None:
+    now = datetime.now(timezone.utc).timestamp()
+    with _login_attempt_lock:
+        state = _login_attempts.get(email)
+        if not state:
+            return
+        locked_until = float(state.get("locked_until") or 0)
+        if locked_until > now:
+            retry_after = max(1, int(locked_until - now + 0.999))
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Terlalu banyak percobaan gagal. Coba lagi dalam {retry_after} detik.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+
+def _record_failed_login(email: str) -> None:
+    now = datetime.now(timezone.utc).timestamp()
+    with _login_attempt_lock:
+        state = _login_attempts.get(email) or {"failures": 0, "locked_until": 0}
+        failures = int(state.get("failures") or 0) + 1
+        _login_attempts[email] = {
+            "failures": failures,
+            "locked_until": now + _login_cooldown_seconds(failures),
+        }
+
+
+def _reset_failed_login(email: str) -> None:
+    with _login_attempt_lock:
+        _login_attempts.pop(email, None)
 
 
 def create_access_token(user: StoredUser) -> str:
@@ -69,7 +108,11 @@ def get_optional_user(credentials: HTTPAuthorizationCredentials | None = Depends
 
 
 def authenticate_user(storage: AppStorage, email: str, password: str) -> StoredUser:
-    user = storage.get_user_by_email(email)
+    normalized_email = email.strip().lower()
+    _check_login_cooldown(normalized_email)
+    user = storage.get_user_by_email(normalized_email)
     if user is None or not verify_password(password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email atau password salah")
+        _record_failed_login(normalized_email)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email atau password salah. Coba lagi dalam 5 detik.")
+    _reset_failed_login(normalized_email)
     return user

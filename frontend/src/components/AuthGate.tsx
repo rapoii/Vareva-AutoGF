@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { LogIn, UserPlus, Shield } from "lucide-react"
 import { api, type AuthUser } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PixelRobot, PixelSparkle } from "@/components/PixelDecor"
+import { LoadingOverlay } from "@/components/LoadingOverlay"
 
 interface AuthGateProps {
   onAuthenticated: (user: AuthUser) => void
@@ -18,10 +19,20 @@ export function AuthGate({ onAuthenticated }: AuthGateProps) {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [cooldownUntil, setCooldownUntil] = useState(0)
+  const [now, setNow] = useState(0)
+  const cooldownSeconds = Math.max(0, Math.ceil((cooldownUntil - now) / 1000))
+
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return
+    const intervalId = window.setInterval(() => setNow(Date.now()), 250)
+    return () => window.clearInterval(intervalId)
+  }, [cooldownSeconds])
 
   async function handleSubmit() {
     if (!email.trim() || !password.trim()) return
     if (mode === "register" && !name.trim()) return
+    if (!isRegister && cooldownSeconds > 0) return
 
     setLoading(true)
     setError(null)
@@ -31,7 +42,14 @@ export function AuthGate({ onAuthenticated }: AuthGateProps) {
         : await api.login(email.trim(), password)
       onAuthenticated(result.user)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Auth gagal")
+      const message = err instanceof Error ? err.message : "Auth gagal"
+      const match = message.match(/(\d+)\s*detik/i)
+      if (!isRegister && match) {
+        const currentTime = Date.now()
+        setNow(currentTime)
+        setCooldownUntil(currentTime + Number(match[1]) * 1000)
+      }
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -41,6 +59,13 @@ export function AuthGate({ onAuthenticated }: AuthGateProps) {
 
   return (
     <div className="grid min-h-[calc(100vh-12rem)] place-items-center py-8">
+      {loading && (
+        <LoadingOverlay
+          title={isRegister ? "REGISTER AKUN" : "LOGIN AKUN"}
+          message={isRegister ? "Membuat akun dan menyiapkan session." : "Memverifikasi akun dan menyiapkan session."}
+        />
+      )}
+
       <Card tone="cream" className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2.5">
@@ -85,9 +110,9 @@ export function AuthGate({ onAuthenticated }: AuthGateProps) {
             </div>
           )}
 
-          <Button onClick={handleSubmit} disabled={loading || !email.trim() || !password.trim() || (isRegister && !name.trim())} className="w-full" size="lg">
+          <Button onClick={handleSubmit} disabled={loading || cooldownSeconds > 0 || !email.trim() || !password.trim() || (isRegister && !name.trim())} className="w-full" size="lg">
             {isRegister ? <UserPlus className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
-            {loading ? "LOADING..." : isRegister ? "REGISTER" : "LOGIN"}
+            {!isRegister && cooldownSeconds > 0 ? `COOLDOWN ${cooldownSeconds}s` : isRegister ? "REGISTER" : "LOGIN"}
             <PixelSparkle size={18} />
           </Button>
 

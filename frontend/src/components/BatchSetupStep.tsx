@@ -1,26 +1,35 @@
 import { useState } from "react"
-import { Link2, Sparkles, Minus, Plus, Eye, Zap, AlertTriangle } from "lucide-react"
+import { Link2, Sparkles, Minus, Plus, Eye, Zap, AlertTriangle, ScanLine, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { PixelBolt, PixelHeart, PixelSparkle, PixelStar } from "@/components/PixelDecor"
+import { PixelBolt, PixelSparkle, PixelStar } from "@/components/PixelDecor"
+import type { FormSchema } from "@/lib/api"
+
+type ScannedForm = {
+  url: string
+  schema: FormSchema
+  sessionId: string
+}
 
 interface BatchSetupStepProps {
+  url: string
+  onUrlChange: (url: string) => void
+  onScan: (formUrl: string) => void
+  onClearScan: () => void
   onStart: (formUrl: string, count: number, reviewMode: boolean) => void
+  onOpenConfig: () => void
   loading: boolean
+  scanLoading: boolean
   error: string | null
+  scannedForm: ScannedForm | null
 }
 
 /**
  * Static lookup tables — Tailwind JIT requires full class strings to be present
  * in the source, so always pre-resolve dynamic visual states to static classes.
  */
-const MODE_BG = {
-  lime: "bg-(--color-bg-alt) text-(--color-ink)",
-  violet: "bg-(--color-candy-blush) text-(--color-ink)",
-} as const
-
 const STACK_PROVIDERS = [
   { n: "1", name: "Gemini", model: "2.5-flash-lite", bg: "bg-(--color-bg-alt) text-(--color-ink)" },
   { n: "2", name: "Groq", model: "llama-3.3-70b", bg: "bg-(--color-candy-blush) text-(--color-ink)" },
@@ -28,8 +37,7 @@ const STACK_PROVIDERS = [
   { n: "4", name: "OpenRouter", model: "laguna → free router", bg: "bg-(--color-candy-peach) text-(--color-ink)" },
 ] as const
 
-export function BatchSetupStep({ onStart, loading, error }: BatchSetupStepProps) {
-  const [url, setUrl] = useState("")
+export function BatchSetupStep({ url, onUrlChange, onScan, onClearScan, onStart, onOpenConfig, loading, scanLoading, error, scannedForm }: BatchSetupStepProps) {
   const [count, setCount] = useState(3)
   const [reviewMode, setReviewMode] = useState(false)
 
@@ -37,14 +45,23 @@ export function BatchSetupStep({ onStart, loading, error }: BatchSetupStepProps)
     setCount((c) => Math.min(50, Math.max(1, c + delta)))
   }
 
+  const trimmedUrl = url.trim()
+  const scanCurrent = !!scannedForm && scannedForm.url === trimmedUrl
+  const canGenerate = !!trimmedUrl && scanCurrent && !loading && !scanLoading
+
+  function handleScan() {
+    if (!trimmedUrl) return
+    onScan(trimmedUrl)
+  }
+
   function handleSubmit() {
-    if (!url.trim()) return
-    onStart(url.trim(), count, reviewMode)
+    if (!canGenerate) return
+    onStart(trimmedUrl, count, reviewMode)
   }
 
   const cta = reviewMode
-    ? "PARSE & REVIEW"
-    : `LAUNCH ${count} ISIAN`
+    ? "GENERATE REVIEW"
+    : `GENERATE ${count} ISIAN`
 
   return (
     <div
@@ -73,17 +90,67 @@ export function BatchSetupStep({ onStart, loading, error }: BatchSetupStepProps)
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="form-url">/* form url */</Label>
-              <Input
-                id="form-url"
-                placeholder="https://docs.google.com/forms/d/..."
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                disabled={loading}
-                autoComplete="off"
-                spellCheck={false}
-              />
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="form-url">/* form url */</Label>
+                <Input
+                  id="form-url"
+                  placeholder="https://docs.google.com/forms/d/..."
+                  value={url}
+                  onChange={(e) => onUrlChange(e.target.value)}
+                  disabled={loading || scanLoading}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="space-y-2">
+                <Button
+                  onClick={handleScan}
+                  disabled={!trimmedUrl || loading || scanLoading}
+                  variant="accent"
+                  size="lg"
+                  className="w-full !shadow-[2px_2px_0_0_currentColor] disabled:!shadow-[2px_2px_0_0_currentColor]"                >
+                  <ScanLine className="w-5 h-5" strokeWidth={3} />
+                  SCAN FORM
+                </Button>
+                {scannedForm && (
+                  <Button
+                    onClick={onClearScan}
+                    disabled={loading || scanLoading}
+                    variant="outline"
+                    size="lg"
+                    className="w-full !shadow-[2px_2px_0_0_currentColor] disabled:!shadow-[2px_2px_0_0_currentColor]"                  >
+                    <X className="w-5 h-5" strokeWidth={3} />
+                    HAPUS SCAN
+                  </Button>
+                )}
+              </div>
+              {scannedForm && (
+                <div className={`border-brutal-2 p-3 font-mono text-xs shadow-brutal-sm ${scanCurrent ? "bg-(--color-candy-mint) text-(--color-ink)" : "bg-(--color-brutal-yellow) text-(--color-ink)"}`}>
+                  <div className="font-display text-[10px] mb-2 uppercase">
+                    {scanCurrent ? "SCAN READY" : "URL BERUBAH"}
+                  </div>
+                  {scanCurrent ? (
+                    <div className="space-y-2">
+                      <div className="font-bold wrap-break-word">{scannedForm.schema.title}</div>
+                      <div>{scannedForm.schema.fields.length} fields · {scannedForm.schema.page_count ?? 1} page</div>
+                      <Button
+                        onClick={onOpenConfig}
+                        disabled={loading || scanLoading}
+                        variant="outline"
+                        size="sm"
+                        className="w-full !shadow-[2px_2px_0_0_currentColor] disabled:!shadow-[2px_2px_0_0_currentColor]"
+                      >
+                        LIHAT DETAIL / KONFIGURASI
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="font-bold leading-relaxed">
+                      Link sudah berubah. Scan ulang sebelum generate, atau hapus scan ini.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -177,7 +244,6 @@ export function BatchSetupStep({ onStart, loading, error }: BatchSetupStepProps)
                 icon={<Zap className="w-5 h-5" strokeWidth={3} />}
                 label="AUTO SUBMIT"
                 desc={`Kirim ${count}x langsung ke form`}
-                color="lime"
               />
               <ModeButton
                 active={reviewMode}
@@ -186,7 +252,6 @@ export function BatchSetupStep({ onStart, loading, error }: BatchSetupStepProps)
                 icon={<Eye className="w-5 h-5" strokeWidth={3} />}
                 label="REVIEW DULU"
                 desc="Edit jawaban sebelum kirim"
-                color="violet"
               />
             </div>
           </CardContent>
@@ -210,7 +275,7 @@ export function BatchSetupStep({ onStart, loading, error }: BatchSetupStepProps)
         <div className="hidden md:block">
           <Button
             onClick={handleSubmit}
-            disabled={loading || !url.trim()}
+            disabled={!canGenerate}
             className="w-full disabled:!shadow-[7px_7px_0_0_currentColor] hover:!translate-x-0 hover:!translate-y-0 hover:!shadow-[7px_7px_0_0_currentColor]"
             size="xl"
             variant={reviewMode ? "secondary" : "default"}
@@ -235,6 +300,7 @@ export function BatchSetupStep({ onStart, loading, error }: BatchSetupStepProps)
           </CardHeader>
           <CardContent className="space-y-3 font-mono text-xs text-(--color-ink)">
             <SummaryRow k="URL" v={url ? truncate(url, 28) : "—"} accent={!!url} />
+            <SummaryRow k="SCAN" v={scanCurrent ? "READY" : scannedForm ? "STALE" : "NEEDED"} accent={scanCurrent} />
             <SummaryRow k="COUNT" v={String(count).padStart(2, "0")} accent />
             <SummaryRow k="MODE" v={reviewMode ? "REVIEW" : "AUTO"} accent />
             <SummaryRow k="ETA" v={`~${Math.max(15, count * 5)}s`} />
@@ -301,7 +367,6 @@ function ModeButton({
   icon,
   label,
   desc,
-  color,
 }: {
   active: boolean
   onClick: () => void
@@ -309,7 +374,6 @@ function ModeButton({
   icon: React.ReactNode
   label: string
   desc: string
-  color: "lime" | "violet"
 }) {
   return (
     <button

@@ -168,6 +168,29 @@ class AppStorage:
         self.db.refresh(record)
         return StoredLog(id=str(record.id or 0))
 
+    def load_form_schema(self, session_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+        if self.use_google_sheets:
+            data = self.sheets.call_action("get_form_schema", {"session_id": session_id, "user_id": user_id})  # type: ignore[union-attr]
+            schema = data.get("schema")
+            return schema if isinstance(schema, dict) else None
+
+        if self.db is None:
+            return None
+        record = self.db.exec(
+            select(FormSchemaRecord).where(FormSchemaRecord.session_id == _to_sqlite_id(session_id))
+        ).first()
+        if not record:
+            return None
+        db_session = self.db.get(FormSession, _to_sqlite_id(session_id))
+        if not db_session:
+            return None
+        return {
+            "session_id": str(record.session_id),
+            "user_id": user_id or "",
+            "form_url": db_session.form_url,
+            "schema_json": record.schema_data,
+        }
+
     def load_answer_history(self, form_url: str, limit: int = 12, user_id: str | None = None) -> list[dict[str, Any]]:
         if self.use_google_sheets:
             data = self.sheets.call_action("get_answer_history", {"form_url": form_url, "limit": limit, "user_id": user_id})  # type: ignore[union-attr]
@@ -221,6 +244,7 @@ class AppStorage:
                 "gender": persona.gender,
                 "age": persona.age,
                 "occupation": persona.occupation,
+                "economic_class": persona.economic_class,
                 "persona_json": persona.model_dump_json(),
                 "created_at": _now_iso(),
             })
@@ -235,6 +259,7 @@ class AppStorage:
             gender=persona.gender,
             age=persona.age,
             occupation=persona.occupation,
+            economic_class=persona.economic_class,
             persona_json=persona.model_dump_json(),
         )
         self.db.add(record)
@@ -272,6 +297,103 @@ class AppStorage:
         self.db.commit()
         self.db.refresh(log)
         return StoredLog(id=str(log.id or 0))
+
+    def load_session_detail(self, session_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+        if self.use_google_sheets:
+            data = self.sheets.call_action("get_session_detail", {"session_id": session_id, "user_id": user_id})  # type: ignore[union-attr]
+            detail = data.get("session")
+            return detail if isinstance(detail, dict) else None
+
+        if self.db is None:
+            return None
+        db_session = self.db.get(FormSession, _to_sqlite_id(session_id))
+        if not db_session:
+            return None
+        return {
+            "session_id": str(db_session.id or ""),
+            "form_url": db_session.form_url,
+            "form_title": "",
+            "count": db_session.batch_count,
+            "success_count": db_session.success_count,
+            "fail_count": db_session.fail_count,
+            "mode": "auto",
+            "status": db_session.status,
+        }
+
+    def load_session_logs(self, session_id: str, user_id: str | None = None) -> list[dict[str, Any]]:
+        if self.use_google_sheets:
+            data = self.sheets.call_action("get_session_logs", {"session_id": session_id, "user_id": user_id})  # type: ignore[union-attr]
+            logs = data.get("logs") or []
+            return [row for row in logs if isinstance(row, dict)]
+
+        if self.db is None:
+            return []
+        rows = self.db.exec(
+            select(SubmissionLog)
+            .where(SubmissionLog.session_id == _to_sqlite_id(session_id))
+            .order_by(SubmissionLog.iteration_number)
+        ).all()
+        logs: list[dict[str, Any]] = []
+        for row in rows:
+            logs.append({
+                "id": str(row.id or ""),
+                "iteration": row.iteration_number,
+                "persona_text": "",
+                "answers_json": row.answers_used,
+                "submit_status": row.submit_status,
+                "http_code": 0,
+                "tokens_used": 0,
+                "retries": 0,
+                "error_message": row.error_message,
+            })
+        return logs
+
+    def update_submission_answers(self, session_id: str, iteration: int, answers: dict[str, Any], user_id: str | None = None) -> None:
+        if self.use_google_sheets:
+            self.sheets.call_action("update_submission_answers", {  # type: ignore[union-attr]
+                "session_id": session_id,
+                "user_id": user_id,
+                "iteration": iteration,
+                "answers_json": json.dumps(answers, ensure_ascii=False),
+            })
+            return
+
+        if self.db is None:
+            return
+        row = self.db.exec(
+            select(SubmissionLog)
+            .where(SubmissionLog.session_id == _to_sqlite_id(session_id))
+            .where(SubmissionLog.iteration_number == iteration)
+        ).first()
+        if row:
+            row.answers_used = json.dumps(answers, ensure_ascii=False)
+            self.db.add(row)
+            self.db.commit()
+
+    def update_submission_result(self, session_id: str, iteration: int, submit_status: str, http_code: int = 0, error_message: str | None = None, user_id: str | None = None) -> None:
+        if self.use_google_sheets:
+            self.sheets.call_action("update_submission_result", {  # type: ignore[union-attr]
+                "session_id": session_id,
+                "user_id": user_id,
+                "iteration": iteration,
+                "submit_status": submit_status,
+                "http_code": http_code,
+                "error_message": error_message,
+            })
+            return
+
+        if self.db is None:
+            return
+        row = self.db.exec(
+            select(SubmissionLog)
+            .where(SubmissionLog.session_id == _to_sqlite_id(session_id))
+            .where(SubmissionLog.iteration_number == iteration)
+        ).first()
+        if row:
+            row.submit_status = submit_status
+            row.error_message = error_message
+            self.db.add(row)
+            self.db.commit()
 
     def update_session_result(self, session_id: str, success_count: int, fail_count: int, status: str = "completed") -> None:
         if self.use_google_sheets:

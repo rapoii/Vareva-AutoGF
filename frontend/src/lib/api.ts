@@ -52,6 +52,15 @@ export interface Persona {
   system_prompt?: string
 }
 
+export type CustomAnswerValue = string | string[]
+
+export interface GenerationConfig {
+  persona_description: string
+  economic_class: "" | "lower" | "middle" | "upper"
+  answer_instructions: string
+  custom_answers: Record<string, CustomAnswerValue>
+}
+
 export interface GenerateResponse {
   answers: Record<string, unknown>
   tokens_used: number
@@ -85,6 +94,13 @@ export interface BatchRunResponse {
   success_count: number
   fail_count: number
   results: IterationResult[]
+}
+
+export interface BatchSessionStatus extends BatchRunResponse {
+  form_url: string
+  mode: string
+  status: string
+  fields?: FormField[]
 }
 
 export interface ParseResponse {
@@ -124,6 +140,18 @@ export interface DeleteFormHistoryResponse {
   deleted_generated_persona_logs: number
 }
 
+export interface SSESessionStartedEvent {
+  type: "session_started"
+  data: {
+    session_id: string
+    form_url: string
+    form_title: string
+    count: number
+    mode: string
+    status: string
+  }
+}
+
 export interface SSELogEvent {
   type: "log"
   data: {
@@ -158,7 +186,7 @@ export interface SSEErrorEvent {
   }
 }
 
-export type SSEEvent = SSELogEvent | SSEProviderEvent | SSEIterationResultEvent | SSECompleteEvent | SSEErrorEvent
+export type SSEEvent = SSESessionStartedEvent | SSELogEvent | SSEProviderEvent | SSEIterationResultEvent | SSECompleteEvent | SSEErrorEvent
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken()
@@ -275,10 +303,50 @@ export const api = {
     })
   },
 
-  async batchRun(form_url: string, count: number, skip_submit: boolean): Promise<BatchRunResponse> {
+  async batchRun(
+    form_url: string,
+    count: number,
+    skip_submit: boolean,
+    session_id?: string,
+    generation_config?: GenerationConfig | null,
+  ): Promise<BatchRunResponse> {
     return requestJson<BatchRunResponse>("/api/batch/run", {
       method: "POST",
-      body: JSON.stringify({ form_url, count, skip_submit }),
+      body: JSON.stringify({ form_url, count, skip_submit, session_id, generation_config }),
+    })
+  },
+
+  async startBatchJob(
+    form_url: string,
+    count: number,
+    skip_submit: boolean,
+    session_id?: string,
+    generation_config?: GenerationConfig | null,
+  ): Promise<BatchSessionStatus> {
+    return requestJson<BatchSessionStatus>("/api/batch/jobs", {
+      method: "POST",
+      body: JSON.stringify({ form_url, count, skip_submit, session_id, generation_config }),
+    })
+  },
+
+  async getBatchSession(sessionId: string): Promise<BatchSessionStatus> {
+    return requestJson<BatchSessionStatus>(`/api/batch/sessions/${encodeURIComponent(sessionId)}`)
+  },
+
+  async updateReviewAnswers(
+    sessionId: string,
+    iteration: number,
+    answers: Record<string, string | string[]>,
+  ): Promise<IterationResult> {
+    return requestJson<IterationResult>(`/api/batch/sessions/${encodeURIComponent(sessionId)}/iterations/${iteration}/answers`, {
+      method: "PATCH",
+      body: JSON.stringify({ answers }),
+    })
+  },
+
+  async submitReviewedSession(sessionId: string): Promise<BatchSessionStatus> {
+    return requestJson<BatchSessionStatus>(`/api/batch/sessions/${encodeURIComponent(sessionId)}/submit-reviewed`, {
+      method: "POST",
     })
   },
 }
@@ -287,6 +355,8 @@ export async function batchRunStream(
   form_url: string,
   count: number,
   skip_submit: boolean,
+  session_id: string,
+  generation_config: GenerationConfig | null,
   onEvent: (event: SSEEvent) => void | Promise<void>,
 ): Promise<void> {
   const response = await fetch(`${BASE}/api/batch/run-stream`, {
@@ -296,7 +366,7 @@ export async function batchRunStream(
       "Content-Type": "application/json",
       ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
     },
-    body: JSON.stringify({ form_url, count, skip_submit }),
+    body: JSON.stringify({ form_url, count, skip_submit, session_id, generation_config }),
   })
 
   if (!response.ok || !response.body) {
@@ -335,7 +405,7 @@ function parseSseEvent(rawEvent: string): SSEEvent | null {
   const type = eventLine.replace("event:", "").trim()
   const data = JSON.parse(dataLine.replace("data:", "").trim())
 
-  if (type === "log" || type === "provider" || type === "iteration_result" || type === "complete" || type === "error") {
+  if (type === "session_started" || type === "log" || type === "provider" || type === "iteration_result" || type === "complete" || type === "error") {
     return { type, data } as SSEEvent
   }
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import get_current_user
 from app.core.parser import parse_form
+from app.core.storage.google_sheets import GoogleSheetsStorageError
 from app.core.storage.models import StoredUser
 from app.core.storage.service import AppStorage
 from app.db import SessionDep
@@ -20,14 +21,17 @@ def parse_google_form(req: ParseRequest, session: SessionDep, user: StoredUser =
         raise HTTPException(status_code=502, detail=str(e))
 
     storage = AppStorage(session)
-    stored_session = storage.create_session(
-        form_url=req.url,
-        count=1,
-        status="parsed",
-        user_id=user.id,
-        form_title=schema.title,
-        mode="review",
-    )
-    storage.save_form_schema(stored_session.id, req.url, schema.model_dump_json(), user_id=user.id)
+    try:
+        stored_session = storage.create_session(
+            form_url=req.url,
+            count=1,
+            status="parsed",
+            user_id=user.id,
+            form_title=schema.title,
+            mode="review",
+        )
+        storage.save_form_schema(stored_session.id, req.url, schema.model_dump_json(), user_id=user.id)
+    except GoogleSheetsStorageError as e:
+        raise HTTPException(status_code=503, detail=f"Storage Google Sheets tidak bisa diakses: {e}") from e
 
     return ParseResponse(schema_=schema, session_id=stored_session.id)

@@ -1,8 +1,9 @@
 import { useState } from "react"
-import { Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react"
+import { Sparkles, ChevronDown, ChevronUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { LoadingOverlay } from "@/components/LoadingOverlay"
 import { api, type FormSchema, type GenerateResponse } from "@/lib/api"
 
 interface GenerateStepProps {
@@ -127,24 +128,16 @@ export function GenerateStep({ schema, personaText, onDone, onBack }: GenerateSt
           Kembali
         </Button>
         <Button onClick={handleGenerate} disabled={loading} className="flex-2" size="lg">
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              Generate Jawaban
-            </>
-          )}
+          <Sparkles className="w-4 h-4" />
+          Generate Jawaban
         </Button>
       </div>
 
       {loading && (
-        <p className="text-center text-sm text-(--color-muted-foreground)">
-          Mengirim prompt ke AI dan memvalidasi jawaban...
-        </p>
+        <LoadingOverlay
+          title="GENERATE JAWABAN"
+          message="Mengirim prompt ke AI dan memvalidasi jawaban."
+        />
       )}
     </div>
   )

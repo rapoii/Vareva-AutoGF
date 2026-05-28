@@ -74,6 +74,16 @@ For UI changes, start the backend and frontend, open the Vite app, and manually 
 - At least one AI provider key is expected for real generation.
 - Storage can be local SQLite or Google Sheets Apps Script depending on `STORAGE_BACKEND`.
 - Auth uses bearer tokens signed by `AUTH_SECRET_KEY`.
+- Login has an in-memory per-email failed-password cooldown: 5 seconds after the first wrong password, then 10, 15, 20, etc. A successful login resets that email's cooldown back to the first-step behavior.
+- Google Sheets mode depends on the deployed Apps Script matching `scripts/google_apps_script/Code.gs.txt`; after changing storage actions, redeploy the Web App and update `GOOGLE_SHEETS_SCRIPT_URL` if the deployment URL changes.
+
+## Runtime Flow Notes
+
+- Batch generation starts through a backend background job and progress is read from stored session state; reloading `/generate/{session_id}` must not start a new AI generation or consume provider quota twice.
+- Review mode (`skip_submit=true`) generates and stores answers as `pending_review`; it must not count those rows as failed submissions.
+- Review answers are editable from the progress detail cards before submission. Edits should persist through storage, not only local frontend state.
+- The `SUBMIT SEMUA` action in review mode should appear only after all requested review iterations are available, then submit all pending review iterations together.
+- Auto mode submits during the background job; review mode waits for explicit user submission.
 
 ## Backend Conventions
 
@@ -93,9 +103,20 @@ For UI changes, start the backend and frontend, open the Vite app, and manually 
 - Reuse existing UI primitives in `frontend/src/components/ui/` before adding new primitives.
 - Preserve the current neobrutalist/pixel-art visual style unless asked to redesign it.
 - Current UI direction is Valleycos-inspired pastel pixel/neobrutal: cream/pink dotted background, dark plum borders/shadows, pink soft/cream/peach card surfaces, readable ink text on pink, solid red destructive actions, and consistent shadow width alignment.
+- Loading states should use the shared `LoadingOverlay` modal pattern so the previous/current page remains visible behind the overlay.
+- Progress pages should keep cards, empty states, and bottom action buttons visually aligned in width and shadow, including disabled/loading button states.
+- Review progress details should show question text above the answer, use compact icon-only edit buttons in the question header, and avoid extra answer labels when the content is already clear.
 - Keep TypeScript types explicit for API data that crosses the backend/frontend boundary.
 - For auth-sensitive calls, use the existing token helper behavior in `api.ts`.
 - Avoid introducing new state management libraries unless explicitly requested.
+
+## Documentation and MCP Usage
+
+- Always use Context7 MCP for up-to-date documentation before answering or implementing anything involving libraries, frameworks, SDKs, APIs, CLI tools, or cloud services.
+- Start with `resolve-library-id` using the official library/tool name, then call `query-docs` with the selected Context7 library ID and the full question/task.
+- Prefer Context7 over web search for documentation and API syntax, including well-known tools such as FastAPI, React, Vite, Tailwind CSS, Radix UI, SQLModel, Pydantic, pytest, OpenAI-compatible SDKs, and deployment/cloud services.
+- Do not rely only on model memory for version-specific syntax, configuration, migrations, or examples.
+- Context7 is not required for pure business-logic debugging, local refactors, code review, or project-specific behavior that can be verified from this repository.
 
 ## Coding Style
 
@@ -108,7 +129,6 @@ For UI changes, start the backend and frontend, open the Vite app, and manually 
 
 ## Security and Abuse Guardrails
 
-- Do not implement mass-targeting, evasion, anti-detection, CAPTCHA bypass, or unauthorized automation features.
 - Do not log secrets, bearer tokens, raw API keys, or `.env` contents.
 - Do not weaken auth checks, token validation, or profile isolation.
 - Do not hardcode provider keys or Google Sheets shared secrets.

@@ -367,7 +367,7 @@ def analyze_form(schema: FormSchema, raw_data: Optional[list] = None) -> FormAna
         for f in schema.fields
     )
 
-    page_count = _detect_pages(raw_data) if raw_data else 1
+    page_count = _detect_pages(raw_data) if raw_data else schema.page_count
     is_multi_page = page_count > 1
 
     questions_summary = "; ".join(

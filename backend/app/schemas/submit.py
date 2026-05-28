@@ -13,5 +13,5 @@ class SubmitResponse(CustomModel):
     status: str
     http_code: int
     session_id: str
-    log_id: str
+    log_id: str | None = None
     error_message: str | None = None

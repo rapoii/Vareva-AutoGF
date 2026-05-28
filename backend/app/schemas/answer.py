@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import field_validator
 from app.schemas.base import CustomModel
 
@@ -9,6 +9,7 @@ class Persona(CustomModel):
     gender: str
     city: str
     occupation: str
+    economic_class: Literal["lower", "middle", "upper"] = "middle"
     education: str
     interests: list[str]
     daily_habits: str
@@ -23,6 +24,7 @@ class Persona(CustomModel):
             f"Jenis Kelamin: {self.gender}",
             f"Kota: {self.city}",
             f"Pekerjaan: {self.occupation}",
+            f"Kelas Ekonomi: {self.economic_class}",
             f"Pendidikan: {self.education}",
             f"Minat: {interests_str}",
             f"Kebiasaan Sehari-hari: {self.daily_habits}",

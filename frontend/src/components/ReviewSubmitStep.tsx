@@ -1,10 +1,11 @@
 import { useState } from "react"
-import { Send, Loader2, Pencil, RotateCcw, Eye, ArrowLeft, Terminal, XCircle } from "lucide-react"
+import { Send, Pencil, RotateCcw, Eye, ArrowLeft, Terminal, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PixelStar, PixelCheck, PixelCross, PixelBolt } from "@/components/PixelDecor"
+import { LoadingOverlay } from "@/components/LoadingOverlay"
 import { api, type FormSchema, type GenerateResponse, type SubmitResponse } from "@/lib/api"
 import { getAnswerWarnings } from "@/lib/reviewQuality"
 
@@ -324,36 +325,11 @@ export function ReviewSubmitStep({ schema, sessionId, formUrl, generateResults, 
           </div>
         )}
 
-        {/* Submitting status */}
         {submitting && (
-          <Card tone="blue">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-4">
-                <div className="border-brutal bg-(--color-bg-alt) p-2 shadow-brutal-sm">
-                  <Loader2 className="w-6 h-6 gpu motion-safe-loader" />
-                </div>
-                <div className="flex-1">
-                  <div className="font-display text-xs mb-1">SUBMITTING...</div>
-                  <div className="font-mono text-xs">
-                    Persona {currentSubmitIndex !== null ? currentSubmitIndex + 1 : 1} of {allAnswers.length}
-                  </div>
-                </div>
-                <div className="w-32 border-brutal bg-(--color-bg-alt) p-1 overflow-hidden">
-                  <div className="h-2 bg-muted relative">
-                    <div
-                      className="absolute inset-y-0 left-0 bg-(--color-bg-alt) transition-all duration-300"
-                      style={{
-                        width: `${((currentSubmitIndex !== null ? currentSubmitIndex + 1 : 0) / allAnswers.length) * 100}%`,
-                      }}
-                    />
-                    <div
-                      className="absolute inset-y-0 w-10 bg-(--color-bg-alt) motion-safe-shimmer"
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <LoadingOverlay
+            title="SUBMIT FORM"
+            message={`Mengirim persona ${currentSubmitIndex !== null ? currentSubmitIndex + 1 : 1} dari ${allAnswers.length} ke Google Form.`}
+          />
         )}
 
         {/* Desktop action buttons */}

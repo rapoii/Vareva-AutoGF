@@ -39,6 +39,7 @@ def _compact_persona_text(persona_text: str) -> str:
         "Jenis Kelamin": "gender",
         "Kota": "city",
         "Pekerjaan": "job",
+        "Kelas Ekonomi": "economic_class",
         "Pendidikan": "edu",
         "Minat": "interests",
         "Kebiasaan Sehari-hari": "habits",
@@ -61,6 +62,7 @@ def _build_system_prompt(persona_text: str) -> str:
         f"Fill this Google Form as persona: {persona}\n"
         "Return JSON only. Keys must be entry IDs. Identity answers must match persona exactly: "
         "name/nama=name, age/umur/usia=age number, gender=gender, job/pekerjaan/profesi=job exactly. "
+        "For price/harga/mahal/murah/terjangkau/affordability/value-for-money questions, answer consistently with economic_class: lower is price-sensitive, middle balances price and value, upper is more tolerant of premium pricing. "
         "Never add job details like semester, industry, company, IT, or marketing."
     )
 
@@ -98,7 +100,51 @@ def _field_prompt_line(field) -> str:
     return line
 
 
-def _build_user_prompt(schema: FormSchema, answer_history: Sequence[dict[str, Any]] | None = None) -> str:
+def _apply_custom_answers(answers: dict[str, Any], custom_answers: dict[str, str | list[str]] | None) -> dict[str, Any]:
+    if not custom_answers:
+        return answers
+    merged = dict(answers)
+    for entry_id, value in custom_answers.items():
+        if isinstance(value, list):
+            cleaned = [item.strip() for item in value if item.strip()]
+            if cleaned:
+                merged[entry_id] = cleaned
+        elif value.strip():
+            merged[entry_id] = value.strip()
+    return merged
+
+
+def _format_custom_answers(schema: FormSchema, custom_answers: dict[str, str | list[str]]) -> str:
+    field_map = {field.entry_id: field for field in schema.fields}
+    lines: list[str] = []
+    for entry_id, value in custom_answers.items():
+        if not value:
+            continue
+        if entry_id.endswith(".other_option_response"):
+            base_entry_id = entry_id.removesuffix(".other_option_response")
+            field = field_map.get(base_entry_id)
+            if not field:
+                continue
+            formatted = ", ".join(value) if isinstance(value, list) else value
+            if formatted.strip():
+                lines.append(f"- {entry_id} (isi Yang lain untuk {_short_text(field.question_text, 80)}): {_short_text(formatted, 160)}")
+            continue
+
+        field = field_map.get(entry_id)
+        if not field:
+            continue
+        formatted = ", ".join(value) if isinstance(value, list) else value
+        if formatted.strip():
+            lines.append(f"- {entry_id} ({_short_text(field.question_text, 80)}): {_short_text(formatted, 160)}")
+    return "\n".join(lines)
+
+
+def _build_user_prompt(
+    schema: FormSchema,
+    answer_history: Sequence[dict[str, Any]] | None = None,
+    answer_instructions: str = "",
+    custom_answers: dict[str, str | list[str]] | None = None,
+) -> str:
     lines = [
         f"Form: {_short_text(schema.title, 100)}",
     ]
@@ -114,6 +160,17 @@ def _build_user_prompt(schema: FormSchema, answer_history: Sequence[dict[str, An
             lines += [
                 "Used answers for same form; avoid same non-identity combo:",
                 formatted_history,
+            ]
+
+    if answer_instructions.strip():
+        lines.append(f"User answer direction: {_short_text(answer_instructions, 400)}")
+
+    if custom_answers:
+        formatted_custom_answers = _format_custom_answers(schema, custom_answers)
+        if formatted_custom_answers:
+            lines += [
+                "User selected preferred answers for these fields; use them exactly when valid and keep other fields default AI-generated:",
+                formatted_custom_answers,
             ]
 
     lines += [
@@ -248,7 +305,14 @@ def _try_generate_personas(provider: AIProvider, n: int, prompt: str) -> tuple[l
     return personas, provider.name
 
 
-def _build_persona_prompt(n: int, context_block: str, audience_block: str, assigned_block: str) -> str:
+def _build_persona_prompt(
+    n: int,
+    context_block: str,
+    audience_block: str,
+    assigned_block: str,
+    persona_description: str = "",
+    economic_class: str = "",
+) -> str:
     """Build the persona generation prompt with compact instructions."""
     jobs = [
         "Mahasiswa", "Karyawan swasta", "Wiraswasta", "Freelancer", "PNS", "Guru", "Dosen",
@@ -257,18 +321,29 @@ def _build_persona_prompt(n: int, context_block: str, audience_block: str, assig
         "Pengacara", "Akuntan", "Arsitek", "Desainer", "Fotografer", "Penulis", "Wartawan",
         "Youtuber", "Influencer", "Atlet", "Musisi", "Seniman",
     ]
+    custom_lines = []
+    if persona_description.strip():
+        custom_lines.append(f"Arahan persona user: {_short_text(persona_description, 400)}")
+    if economic_class.strip():
+        custom_lines.append(f"Semua persona harus economic_class='{economic_class.strip()}'.")
+    custom_block = "\n".join(custom_lines)
+    if custom_block:
+        custom_block += "\n"
+
     return (
         f"Buat {n} persona Indonesia realistis untuk mengisi Google Form."
         f"{context_block}{audience_block}\n"
+        f"{custom_block}"
         f"Nama/gender WAJIB pakai ini, jangan buat nama baru:\n{assigned_block}\n"
         "Aturan: usia/kota/job/minat/kebiasaan harus cocok dengan konteks & target form; "
         "contoh coffee shop/Starbucks biasanya 18-30 mahasiswa/karyawan/freelancer, kampus 18-25 mahasiswa. "
         "Jangan persona tidak masuk akal untuk topik form. "
         f"occupation harus persis salah satu dari: {json.dumps(jobs, ensure_ascii=False, separators=(',', ':'))}. "
         "Jangan tambah detail pekerjaan seperti semester, jurusan, IT, marketing, perusahaan. "
-        "Variasikan kepribadian dan motivasi; tetap natural Indonesia.\n"
+        "economic_class harus salah satu dari lower, middle, upper: lower lebih sensitif harga, middle menimbang harga vs value/kualitas, upper lebih toleran harga premium. "
+        "Variasikan kelas ekonomi antar persona bila konteks form memungkinkan; tetap natural Indonesia.\n"
         f"Return JSON only: {{\"personas\":[exactly {n} objects]}}. "
-        "Fields per object: name, age, gender('Laki-laki'|'Perempuan'), city, occupation, education, interests(array), daily_habits, personality_tone, motivation."
+        "Fields per object: name, age, gender('Laki-laki'|'Perempuan'), city, occupation, economic_class('lower'|'middle'|'upper'), education, interests(array), daily_habits, personality_tone, motivation."
     )
 
 
@@ -276,13 +351,21 @@ def generate_persona_objects(
     n: int,
     analysis: "FormAnalysis | None" = None,
     blocked_names: set[str] | None = None,
+    persona_description: str = "",
+    economic_class: str = "",
 ) -> list[Persona]:
     """
     Generate n distinct, realistic Indonesian personas.
     Tries providers in order: Gemini → Groq → Cerebras → OpenRouter.
     Raises if every configured AI provider fails; no hardcoded persona generation.
     """
-    personas, _provider_name = generate_persona_objects_with_provider(n, analysis=analysis, blocked_names=blocked_names)
+    personas, _provider_name = generate_persona_objects_with_provider(
+        n,
+        analysis=analysis,
+        blocked_names=blocked_names,
+        persona_description=persona_description,
+        economic_class=economic_class,
+    )
     return personas
 
 
@@ -290,6 +373,8 @@ def generate_persona_objects_with_provider(
     n: int,
     analysis: "FormAnalysis | None" = None,
     blocked_names: set[str] | None = None,
+    persona_description: str = "",
+    economic_class: str = "",
 ) -> tuple[list[Persona], str]:
     """Generate personas and return the provider name that succeeded."""
     context_block = ""
@@ -306,7 +391,14 @@ def generate_persona_objects_with_provider(
         assigned_personas.append(f"Persona {i}: Nama='{name}', Gender='{g_label}'")
 
     assigned_block = "\n".join(assigned_personas)
-    prompt = _build_persona_prompt(n, context_block, audience_block, assigned_block)
+    prompt = _build_persona_prompt(
+        n,
+        context_block,
+        audience_block,
+        assigned_block,
+        persona_description=persona_description,
+        economic_class=economic_class,
+    )
 
     providers = _make_providers()
     for provider in providers:
@@ -338,6 +430,8 @@ def generate_answers_with_provider(
     schema: FormSchema,
     persona_text: str,
     answer_history: Sequence[dict[str, Any]] | None = None,
+    answer_instructions: str = "",
+    custom_answers: dict[str, str | list[str]] | None = None,
 ) -> tuple[GenerateResponse, str]:
     """
     Generate form answers using AI providers in retry order.
@@ -350,7 +444,12 @@ def generate_answers_with_provider(
         raise ValueError("Tidak ada AI provider yang dikonfigurasi")
 
     system_prompt = _build_system_prompt(persona_text)
-    user_prompt = _build_user_prompt(schema, answer_history)
+    user_prompt = _build_user_prompt(
+        schema,
+        answer_history,
+        answer_instructions=answer_instructions,
+        custom_answers=custom_answers,
+    )
 
     last_errors: list[str] = []
 
@@ -399,12 +498,13 @@ def generate_answers_with_provider(
                     })
                     continue
 
-                validation_errors = _validate_answers(raw_answers, schema)
+                answers = _apply_custom_answers(raw_answers, custom_answers)
+                validation_errors = _validate_answers(answers, schema)
                 if not validation_errors:
                     logger.info("%s: answers valid after %d attempt(s)", provider.name, attempt + 1)
-                    AnswerMap(answers=raw_answers)
+                    AnswerMap(answers=answers)
                     return GenerateResponse(
-                        answers=raw_answers,
+                        answers=answers,
                         tokens_used=total_tokens,
                         retries=retries,
                     ), provider.name
@@ -417,7 +517,7 @@ def generate_answers_with_provider(
 
                 if attempt < settings.llm_max_retries:
                     error_summary = "\n".join(f"- {e}" for e in validation_errors[:5])
-                    messages.append({"role": "assistant", "content": raw_content})
+                    messages.append({"role": "assistant", "content": json.dumps(answers, ensure_ascii=False)})
                     messages.append({
                         "role": "user",
                         "content": (
@@ -440,7 +540,15 @@ def generate_answers(
     schema: FormSchema,
     persona_text: str,
     answer_history: Sequence[dict[str, Any]] | None = None,
+    answer_instructions: str = "",
+    custom_answers: dict[str, str | list[str]] | None = None,
 ) -> GenerateResponse:
     """Legacy wrapper for generating form answers without returning provider info."""
-    resp, _provider_name = generate_answers_with_provider(schema, persona_text, answer_history)
+    resp, _provider_name = generate_answers_with_provider(
+        schema,
+        persona_text,
+        answer_history,
+        answer_instructions=answer_instructions,
+        custom_answers=custom_answers,
+    )
     return resp

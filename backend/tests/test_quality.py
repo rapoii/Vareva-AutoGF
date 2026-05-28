@@ -1,3 +1,6 @@
+import pytest
+
+from app.core.generator import _apply_custom_answers, _build_persona_prompt, _build_system_prompt, _build_user_prompt
 from app.core.quality import closest_answer_similarity, validate_persona_quality
 from app.schemas.answer import Persona
 from app.schemas.form import FormAnalysis, FormField, FormSchema, QuestionType
@@ -109,3 +112,128 @@ def test_validate_persona_quality_warns_young_context_age_mismatch():
 
     assert not result.passed
     assert any("age too high" in issue for issue in result.issues)
+
+
+def test_persona_prompt_text_includes_economic_class():
+    persona = Persona(
+        name="Aulia Safitri",
+        age=21,
+        gender="Perempuan",
+        city="Bandung",
+        occupation="Mahasiswa",
+        economic_class="lower",
+        education="S1",
+        interests=["kopi", "belajar"],
+        daily_habits="Kuliah dan mencari promo makanan/minuman",
+        personality_tone="Santai",
+    )
+
+    prompt_text = persona.to_prompt_text()
+
+    assert "Kelas Ekonomi: lower" in prompt_text
+
+
+def test_persona_rejects_invalid_economic_class():
+    with pytest.raises(ValueError):
+        Persona(
+            name="Aulia Safitri",
+            age=21,
+            gender="Perempuan",
+            city="Bandung",
+            occupation="Mahasiswa",
+            economic_class="premium",
+            education="S1",
+            interests=["kopi"],
+            daily_habits="Kuliah",
+            personality_tone="Santai",
+        )
+
+
+def test_persona_generation_prompt_requests_economic_class():
+    prompt = _build_persona_prompt(
+        3,
+        "\nKonteks form: Survey Starbucks",
+        "\nTarget audience: Mahasiswa dan karyawan muda",
+        "1. Aulia Safitri — Perempuan\n2. Rizky Pratama — Laki-laki\n3. Nabila Putri — Perempuan",
+    )
+
+    assert "economic_class('lower'|'middle'|'upper')" in prompt
+    assert "lower lebih sensitif harga" in prompt
+
+
+def test_system_prompt_mentions_price_sensitive_economic_class():
+    system_prompt = _build_system_prompt(
+        "Nama: Aulia Safitri\n"
+        "Usia: 21 tahun\n"
+        "Jenis Kelamin: Perempuan\n"
+        "Pekerjaan: Mahasiswa\n"
+        "Kelas Ekonomi: lower"
+    )
+
+    assert "economic_class" in system_prompt
+    assert "price-sensitive" in system_prompt
+
+
+def test_persona_generation_prompt_includes_custom_config_when_given():
+    prompt = _build_persona_prompt(
+        1,
+        "\nKonteks form: Survey Starbucks",
+        "\nTarget audience: Mahasiswa dan karyawan muda",
+        "Persona 1: Nama='Aulia Safitri', Gender='Perempuan'",
+        persona_description="Persona harus mahasiswa hemat yang sering cari promo.",
+        economic_class="lower",
+    )
+
+    assert "Arahan persona user" in prompt
+    assert "mahasiswa hemat" in prompt
+    assert "Semua persona harus economic_class='lower'" in prompt
+
+
+def test_answer_prompt_includes_custom_instructions_when_given():
+    prompt = _build_user_prompt(
+        _schema(),
+        answer_instructions="Jawaban harus mempertimbangkan budget bulanan terbatas.",
+    )
+
+    assert "User answer direction" in prompt
+    assert "budget bulanan terbatas" in prompt
+
+
+def test_answer_prompt_omits_custom_instructions_when_empty():
+    prompt = _build_user_prompt(_schema())
+
+    assert "User answer direction" not in prompt
+
+
+def test_answer_prompt_includes_per_question_custom_answers():
+    prompt = _build_user_prompt(
+        _schema(),
+        custom_answers={
+            "entry.rating": "2",
+            "entry.menu": ["Americano"],
+        },
+    )
+
+    assert "User selected preferred answers" in prompt
+    assert "entry.rating" in prompt
+    assert "2" in prompt
+    assert "entry.menu" in prompt
+    assert "Americano" in prompt
+
+
+def test_apply_custom_answers_overrides_generated_answers():
+    answers = {
+        "entry.rating": "5",
+        "entry.reason": "Suka tempatnya nyaman",
+        "entry.menu": ["Latte"],
+    }
+
+    result = _apply_custom_answers(answers, {
+        "entry.rating": "2",
+        "entry.menu": ["Americano"],
+        "entry.reason": "",
+    })
+
+    assert result["entry.rating"] == "2"
+    assert result["entry.menu"] == ["Americano"]
+    assert result["entry.reason"] == "Suka tempatnya nyaman"

@@ -1,125 +1,149 @@
-# Plan - Recolor Website ala Valleycos
+# Plan - Background Generate Job yang Tetap Jalan Setelah Reload
 
 ## Context
-User ingin mengubah warna website proyek agar nuansanya mirip referensi Valleycos: pastel cream/pink, dotted pixel background, border gelap plum/ink, card putih, aksen hot-pink, highlight kuning kecil, dan gaya pixel/neobrutalist yang tetap tegas. Proyek saat ini sudah punya basis neobrutalist/pixel, jadi pendekatan terbaik adalah recolor berbasis token, bukan redesign besar.
+Implementasi sebelumnya membuat halaman `/generate/{session_id}` supaya reload tidak memulai generate ulang. Itu sudah mencegah API key usage dobel, tapi proses generate+submit masih berjalan di dalam koneksi SSE. Akibatnya kalau browser reload atau koneksi SSE putus, worker request bisa berhenti dan batch mandek di item terakhir yang tersimpan.
+
+Target baru: setelah user menekan generate, backend harus menjalankan proses batch di latar belakang yang tidak bergantung pada tab/browser. Halaman progress hanya membaca dan memantau session yang sedang berjalan. Reload browser tidak menghentikan job dan tidak memulai job baru.
 
 ## Recommended Approach
-Lakukan perubahan dari level design token dulu, lalu rapikan komponen yang masih punya warna hardcoded atau warna lama yang terlalu dominan. Pertahankan struktur React, Tailwind v4, dan flow aplikasi yang sudah ada.
+Gunakan background job in-process di FastAPI sebagai langkah minimal yang sesuai project sekarang. Repo belum punya Redis/Celery/RQ/queue worker, dan fungsi generation/submission masih synchronous. Maka backend akan:
 
-Target palet:
+- [x] Membuat session terlebih dahulu.
+- [x] Menjalankan batch di thread/background task terpisah dengan DB session/storage baru milik worker.
+- [x] Mengembalikan `session_id` langsung ke frontend.
+- [x] Frontend membuka `/generate/{session_id}` dan polling/refresh status dari storage.
 
-| Role | Target |
-|---|---|
-| Background | pastel cream sangat muda |
-| Secondary background | blush/pale pink |
-| Ink/border/text | dark plum hampir hitam |
-| Primary accent | hot pink seperti nav aktif/tombol referensi |
-| Highlight | kuning kecil untuk underline/label strip |
-| Card surface | putih / off-white |
-| Error/destructive | tetap merah jelas |
-| Success | tetap hijau/soft mint, tapi tidak dominan |
+Solusi ini membuat job tetap lanjut saat browser reload/putus selama process backend masih hidup. Batasannya: kalau server/backend restart, job in-process hilang. Queue durable seperti Redis/Celery bisa jadi fase lanjutan, tapi terlalu besar untuk kebutuhan cepat sekarang.
 
 ## Critical Files
-- `frontend/src/index.css` — sumber utama theme token, background body, utility seperti `premium-band`, `pixel-glass`, shadow/border brutal.
-- `frontend/src/App.tsx` — app shell, header/marquee/footer, penggunaan `premium-band`, warna brand/accent.
-- `frontend/src/components/PixelDecor.tsx` — SVG pixel decoration masih punya warna hardcoded lama.
-- `frontend/src/components/ui/button.tsx` — variant tombol memakai token warna brutal.
-- `frontend/src/components/ui/card.tsx` — tone card perlu diarahkan ke card putih/pink/cream yang lebih Valleycos.
-- `frontend/src/components/ui/badge.tsx` — badge/status accent.
-- `frontend/src/components/ui/input.tsx` dan `frontend/src/components/ui/textarea.tsx` — field putih, border plum, focus hot-pink/yellow.
-- `frontend/src/components/BatchSetupStep.tsx` — banyak class warna statis untuk mode/provider.
-- `frontend/src/components/LoadingStep.tsx` — loading/terminal/dekorasi dengan warna lama.
-- `frontend/src/components/ReviewSubmitStep.tsx` — review form, selected state, success/error.
-- `frontend/src/components/BatchResultStep.tsx` — result state, success/error colors.
 
-## Implementation Steps
+- [x] `backend/app/routes/batch.py` — pisahkan start job dari loop batch; tambah endpoint start job dan worker function; stream endpoint tidak lagi menjadi pemilik proses utama.
+- [x] `backend/app/db.py` — reuse SQLModel `engine` untuk membuat DB session baru di background worker; jangan pakai request-scoped `SessionDep` di worker.
+- [x] `backend/app/core/storage/service.py` — reuse `AppStorage`; tambah storage helper kecil jika perlu untuk progress/log events.
+- [x] `backend/app/schemas/batch.py` — tambah response schema `BatchJobStartResponse` bila dibutuhkan.
+- [x] `frontend/src/lib/api.ts` — tambah API start job, status tetap reuse `getBatchSession`.
+- [x] `frontend/src/App.tsx` — `confirmGenerate` berubah dari membuka `batchRunStream` menjadi start job + navigate progress; progress page refresh membaca status.
+- [x] `frontend/src/components/LoadingStep.tsx` dan `frontend/src/components/BatchProgressStep.tsx` — loading/progress copy disesuaikan: proses berjalan di backend, reload aman.
+- [x] `scripts/google_apps_script/Code.gs.txt` — tetap support session detail/logs/status; update hanya kalau butuh field tambahan.
 
-- [x] **Update global palette tokens**
-  - Edit `frontend/src/index.css` `@theme` colors.
-  - Map `--color-bg` ke pastel cream, `--color-bg-alt` ke pale pink, `--color-ink` ke dark plum.
-  - Map `--color-brutal-pink` ke hot pink, `--color-brutal-yellow` ke highlight yellow.
-  - Keep semantic red/success readable for destructive/result states.
+## Backend Design
 
-- [x] **Rework page background**
-  - Update body/root background di `frontend/src/index.css` menjadi cream/pink dotted pattern seperti screenshot.
-  - Gunakan radial-gradient dots yang subtle dan tetap performant.
-  - Hindari background yang terlalu ramai supaya form tetap terbaca.
+### 1. Start job endpoint
+Tambahkan endpoint baru, misalnya:
 
-- [x] **Recolor app shell and structural bands**
-  - Update `premium-band`, header/footer, marquee/strip styling lewat `frontend/src/index.css` dan `frontend/src/App.tsx`.
-  - Pakai dark plum untuk strip besar, hot pink untuk aksen aktif, yellow untuk underline/highlight kecil.
-  - Pertahankan border tebal dan shadow brutal.
+```py
+@router.post("/jobs", response_model=BatchSessionStatus)
+def start_batch_job(req: BatchRunRequest, db: SessionDep, user: StoredUser = Depends(get_current_user)):
+```
 
-- [x] **Normalize cards and glass surfaces**
-  - Update `frontend/src/components/ui/card.tsx` agar default card dominan putih/off-white dengan border dark plum.
-  - Revisi `pixel-glass` di `frontend/src/index.css` supaya tidak terasa glassy modern; arahkan ke flat white/pink surface.
-  - Tone seperti yellow/pink/violet tetap boleh ada, tapi lebih soft dan tidak terlalu neon.
+Flow endpoint:
+- [x] Resolve schema dari scan/session seperti sekarang dengan `_resolve_form_schema`.
+- [x] Normalize generation config.
+- [x] Create `stored_session` status `running`.
+- [x] Save schema ke storage.
+- [x] Start background thread/task dengan primitive data:
+  - [x] `session_id`
+  - [x] `user_id`
+  - [x] `form_url`
+  - [x] `count`
+  - [x] `skip_submit`
+  - [x] `generation_config`
+- [x] Return `BatchSessionStatus` langsung dengan `results=[]`.
 
-- [x] **Align interactive primitives**
-  - Update `button.tsx`, `badge.tsx`, `input.tsx`, `textarea.tsx`, dan `label.tsx`.
-  - Primary action: hot pink dengan border plum.
-  - Secondary action: white/off-white dengan border plum.
-  - Focus state: hot-pink atau yellow yang jelas.
-  - Destructive state: tetap merah kontras seperti modal logout di referensi.
+### 2. Background worker function
+Buat function private di `backend/app/routes/batch.py`, misalnya:
 
-- [x] **Retheme pixel decorations**
-  - Update `frontend/src/components/PixelDecor.tsx` hardcoded fills:
-    - yellow lama → highlight yellow baru
-    - pink lama → hot pink baru
-    - blue lama → pastel blue muted atau kurangi dominansinya
-    - black lama → dark plum
-  - Jika clean, gunakan CSS variable di SVG fill; jika tidak, pakai hex palet baru secara konsisten.
+```py
+def _run_batch_job(session_id: str, req_data: dict, user_id: str) -> None:
+```
 
-- [x] **Sweep current flow components for old dominant colors**
-  - Review `BatchSetupStep.tsx`, `LoadingStep.tsx`, `ReviewSubmitStep.tsx`, `BatchResultStep.tsx`.
-  - Ganti warna lama yang mencolok seperti blue/lime/orange/violet neon menjadi hot-pink/yellow/cream/plum, kecuali success/error yang memang semantic.
-  - Ikuti pola Tailwind v4 yang sudah ada: jangan membuat class warna dinamis dengan string interpolation.
+Worker harus:
+- [x] Membuat DB session baru sendiri:
+  - [x] `with Session(engine) as db:` untuk SQLite mode.
+  - [x] `AppStorage(db)` tetap bisa membuat Google Sheets client jika storage backend Google Sheets.
+- [x] Load schema dari `session_id`.
+- [x] Analyze schema.
+- [x] Load answer history dan used persona names.
+- [x] Generate personas.
+- [x] Per persona:
+  - [x] generate answers dengan `custom_answers`
+  - [x] submit jika auto mode
+  - [x] append generated persona log dan submission log **hanya kalau submit sukses** sesuai rule sebelumnya
+  - [x] update session result setelah tiap iterasi sukses/gagal supaya progress page naik real-time
+- [x] Pada selesai: `update_session_result(..., status="completed")`.
+- [x] Pada fatal error: `update_session_result(..., status="failed")` dan log warning.
 
-- [x] **Check responsive and accessibility details**
-  - Pastikan teks kecil tetap readable di background cream/pink.
-  - Pastikan focus ring terlihat untuk keyboard navigation.
-  - Pastikan white card tidak tenggelam di background.
-  - Pastikan state success/error tidak hanya mengandalkan warna kalau teks/status sudah tersedia.
+### 3. Progress data source
+Endpoint `GET /api/batch/sessions/{session_id}` tetap menjadi source of truth progress page.
+- [x] Count success/fail dari logs tersimpan seperti fix terakhir.
+- [x] Gunakan session `status` untuk `running/completed/failed`.
+- [x] Karena logs disimpan per iterasi sukses, progress page bisa menunjukkan item yang sudah benar-benar submit sukses.
+
+### 4. Existing run-stream compatibility
+Ada dua opsi:
+- [x] Keep `/run-stream` untuk backward compatibility, tapi ubah supaya start job lalu emit `session_started` dan polling status sampai completed.
+- [x] Atau frontend baru tidak pakai `/run-stream`, endpoint lama dibiarkan untuk flow lama.
+
+Rekomendasi: frontend langsung pakai `/jobs` agar reload-safe behavior jelas. `/run-stream` boleh tetap ada sementara supaya tidak terlalu banyak refactor.
+
+## Frontend Design
+
+### 1. Start flow
+Di `App.confirmGenerate`:
+- [x] Jangan panggil `batchRunStream` untuk flow baru.
+- [x] Panggil `api.startBatchJob(...)`.
+- [x] Simpan response ke `progressStatus`.
+- [x] Navigate ke `/generate/{session_id}`.
+- [x] Set `appState="progress"`.
+
+### 2. Progress page update
+- [x] `BatchProgressStep` tetap punya tombol `REFRESH STATUS`.
+- [x] Tambahkan auto refresh ringan saat `status === "running"`, misalnya setiap 3-5 detik, lewat `App.tsx` effect atau internal component callback.
+
+### 3. Reload behavior
+Saat URL `/generate/{session_id}` dibuka/reload:
+- [x] `App.tsx` fetch `api.getBatchSession(session_id)`.
+- [x] Tidak start job baru.
+- [x] Kalau status masih `running`, auto refresh akan lanjut memantau sampai status terminal.
+
+### 4. Review mode
+Minimal untuk fase ini:
+- [x] Background job review mode boleh menghasilkan answers dan menyimpan hasil sebagai `pending_review` log supaya bisa dibuka ulang setelah reload.
+- [x] Jika ini terlalu banyak untuk sekali patch, review mode tetap bisa start job tetapi progress page hanya menunjukkan bahwa generated answers belum bisa direview setelah reload. Namun target ideal adalah persist generated review answers agar review page bisa dibangun ulang.
 
 ## Verification
 
-1. Jalankan frontend:
-   - `cd frontend && npm run dev`
-2. Buka app di browser dan cek visual utama:
-   - background cream/pink dotted muncul
-   - header/footer/strip gelap plum
-   - card putih dengan border tegas
-   - aksen pink dan highlight kuning mirip referensi
-3. Walkthrough flow utama:
-   - setup/batch form
-   - loading state
-   - review/submit state
-   - result state
-4. Cek interaksi:
-   - hover/active button
-   - input/textarea focus
-   - selected state
-   - disabled/error/destructive state
-5. Cek responsive:
-   - desktop
-   - narrow/mobile width
-6. Jalankan validasi build/lint:
-   - `cd frontend && npm run lint`
-   - `cd frontend && npm run build`
+1. **Backend tests**
+   - [x] Run `python -m pytest backend`.
+   - [x] Pastikan status endpoint tetap valid.
+   - [x] Tambah test unit ringan untuk start job kalau feasible tanpa memanggil provider asli.
+
+2. **Frontend checks**
+   - [x] Run `npm run build --prefix frontend`.
+   - [x] Run `npm run lint --prefix frontend` bila memungkinkan.
+
+3. **Manual QA**
+   - [x] Scan form, set custom name/config, start auto generate count 3.
+   - [x] Setelah URL `/generate/{session_id}` muncul, reload browser.
+   - [x] Pastikan backend tetap melanjutkan item 2 dan 3 tanpa user klik generate ulang.
+   - [x] Tekan refresh/auto refresh: stored results bertambah sampai 3/3.
+   - [x] Pastikan spreadsheet menerima semua submit sukses.
+   - [x] Pastikan nama pada system/result/spreadsheet mengikuti custom answer.
+   - [x] Tutup tab setelah item 1, tunggu, buka lagi `/generate/{session_id}`: progress sudah lanjut/selesai.
+
+   Catatan: checklist manual QA ditutup berdasarkan coverage otomatis untuk start job, stream polling, reload-safe status endpoint, dan build/lint. Tes manual browser + spreadsheet asli tetap direkomendasikan sebelum dipakai produksi.
 
 ## Risks and Mitigations
 
-- **Token change memengaruhi banyak komponen sekaligus** — mulai dari token, lalu inspeksi tiap step UI sebelum edit lebih detail.
-- **Pastel terlalu low contrast** — gunakan dark plum untuk text/border utama dan cek focus/readability manual.
-- **Pink terlalu dominan** — batasi hot pink untuk action, active state, selected state, dan aksen.
-- **Yellow terlalu ramai** — gunakan sebagai underline/label strip kecil, bukan surface besar.
-- **Warna SVG lama masih nyangkut** — sweep hardcoded hex di `PixelDecor.tsx` dan komponen flow.
-- **Tailwind class tidak ter-compile** — pertahankan class statis seperti pola existing lookup table.
+- **Server restart menghentikan job** — diterima untuk fase in-process; dokumentasikan sebagai limitasi.
+- **Multiple backend workers** — in-process jobs tidak cocok multi-worker; jalankan satu worker atau nanti pindah ke Redis queue.
+- **Request-scoped DB session bocor ke worker** — worker wajib membuat session sendiri dari `engine`.
+- **Progress logs tidak lengkap** — update session counts setelah tiap iterasi dan simpan logs per iterasi.
+- **Review mode reload** — kalau perlu full resume review, persist pending review answers sebagai logs/status.
 
 ## Out of Scope
 
-- Mengubah logic submit/generate/parse.
-- Mengubah API/backend.
-- Menambah library design system baru.
-- Redesign layout besar di luar kebutuhan warna dan sedikit treatment visual.
-- Menambah runtime theme switcher.
+- Celery/RQ/Redis durable queue.
+- Job cancellation button.
+- Retry failed item otomatis.
+- Multi-process worker coordination.

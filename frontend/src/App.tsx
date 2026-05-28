@@ -1,45 +1,171 @@
-import { useEffect, useRef, useState } from "react"
-import { ChevronDown, LogOut, User } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { ChevronDown, History, LogOut, User, WandSparkles } from "lucide-react"
 import { AuthGate } from "@/components/AuthGate"
+import { Button } from "@/components/ui/button"
 import { BatchSetupStep } from "@/components/BatchSetupStep"
-import { LoadingStep } from "@/components/LoadingStep"
+import { LoadingOverlay } from "@/components/LoadingOverlay"
 import { BatchResultStep } from "@/components/BatchResultStep"
+import { BatchProgressStep } from "@/components/BatchProgressStep"
 import { ReviewSubmitStep } from "@/components/ReviewSubmitStep"
 import { ProfileStep } from "@/components/ProfileStep"
+import { HistoryStep } from "@/components/HistoryStep"
+import { ScanConfigStep } from "@/components/ScanConfigStep"
 import { FloatingPixels, PixelRobot, PixelSparkle } from "@/components/PixelDecor"
-import { api, batchRunStream, clearAuthToken, getAuthToken, type AuthUser, type BatchRunResponse, type FormSchema, type GenerateResponse, type SSEEvent } from "@/lib/api"
+import { api, clearAuthToken, getAuthToken, type AuthUser, type BatchRunResponse, type BatchSessionStatus, type FormSchema, type GenerateResponse, type GenerationConfig, type ProfileHistoryItem } from "@/lib/api"
 
-type AppState = "setup" | "loading" | "review" | "result" | "profile"
+type AppState = "setup" | "review" | "result" | "profile" | "history" | "scanConfig" | "progress"
+
+type ScannedForm = {
+  url: string
+  schema: FormSchema
+  sessionId: string
+}
+
+const DEFAULT_GENERATION_CONFIG: GenerationConfig = {
+  persona_description: "",
+  economic_class: "",
+  answer_instructions: "",
+  custom_answers: {},
+}
+
+const PROGRESS_STATUS_CACHE_KEY = "vareva_progress_status"
+
+function normalizeGenerationConfig(config: GenerationConfig): GenerationConfig | null {
+  const custom_answers = Object.fromEntries(
+    Object.entries(config.custom_answers)
+      .map(([entryId, value]) => {
+        if (Array.isArray(value)) {
+          return [entryId, value.map((item) => item.trim()).filter(Boolean)]
+        }
+        return [entryId, value.trim()]
+      })
+      .filter(([, value]) => Array.isArray(value) ? value.length > 0 : !!value)
+  ) as GenerationConfig["custom_answers"]
+  const normalized: GenerationConfig = {
+    persona_description: config.persona_description.trim(),
+    economic_class: config.economic_class,
+    answer_instructions: config.answer_instructions.trim(),
+    custom_answers,
+  }
+  return normalized.persona_description || normalized.economic_class || normalized.answer_instructions || Object.keys(normalized.custom_answers).length > 0 ? normalized : null
+}
+
+function getGenerateSessionIdFromPath() {
+  const match = window.location.pathname.match(/^\/generate\/([^/]+)$/)
+  return match ? decodeURIComponent(match[1]) : ""
+}
+
+function loadCachedProgressStatus(sessionId: string): BatchSessionStatus | null {
+  try {
+    const raw = sessionStorage.getItem(PROGRESS_STATUS_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as BatchSessionStatus
+    return parsed.session_id === sessionId ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function cacheProgressStatus(status: BatchSessionStatus) {
+  sessionStorage.setItem(PROGRESS_STATUS_CACHE_KEY, JSON.stringify(status))
+}
+
+function goHomePath() {
+  window.history.pushState({}, "", "/")
+}
+
+function goGeneratePath(sessionId: string) {
+  window.history.pushState({}, "", `/generate/${encodeURIComponent(sessionId)}`)
+}
 
 function App() {
   const [appState, setAppState] = useState<AppState>("setup")
+  const [setupUrl, setSetupUrl] = useState("")
   const [pendingUrl, setPendingUrl] = useState("")
-  const [pendingCount, setPendingCount] = useState(1)
   const [batchResult, setBatchResult] = useState<BatchRunResponse | null>(null)
+  const [progressStatus, setProgressStatus] = useState<BatchSessionStatus | null>(null)
+  const [progressLoading, setProgressLoading] = useState(false)
+  const [showProgressOverlay, setShowProgressOverlay] = useState(false)
+  const [startingGenerate, setStartingGenerate] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pendingReviewMode, setPendingReviewMode] = useState(false)
+  const [confirmStart, setConfirmStart] = useState<{ formUrl: string; count: number; reviewMode: boolean } | null>(null)
+  const [scannedForm, setScannedForm] = useState<ScannedForm | null>(null)
+  const [scanLoading, setScanLoading] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyItems, setHistoryItems] = useState<ProfileHistoryItem[] | null>(null)
+  const [generationConfig, setGenerationConfig] = useState<GenerationConfig>(DEFAULT_GENERATION_CONFIG)
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
   const [authReady, setAuthReady] = useState(() => !getAuthToken())
   const [accountOpen, setAccountOpen] = useState(false)
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
+  const progressRequestInFlightRef = useRef(false)
 
   // Streaming state
   const [streamLogs, setStreamLogs] = useState<string[]>([])
-  const [currentProvider, setCurrentProvider] = useState<string>("")
 
   // review mode state (now supports multiple personas)
   const [reviewSchema, setReviewSchema] = useState<FormSchema | null>(null)
-  const [reviewSessionId, setReviewSessionId] = useState("")
+  const [reviewSessionId] = useState("")
   const [reviewResults, setReviewResults] = useState<GenerateResponse[]>([])
+
+  const loadProgressSession = useCallback(async (sessionId: string, options: { showLoading?: boolean; redirectOnError?: boolean } = {}) => {
+    if (progressRequestInFlightRef.current) return
+    const showLoading = options.showLoading ?? true
+    const redirectOnError = options.redirectOnError ?? true
+    progressRequestInFlightRef.current = true
+    if (showLoading) {
+      setProgressLoading(true)
+      setShowProgressOverlay(true)
+    }
+    setError(null)
+    try {
+      const status = await api.getBatchSession(sessionId)
+      cacheProgressStatus(status)
+      setProgressStatus(status)
+      setAppState("progress")
+    } catch (e) {
+      setProgressStatus((current) => current ?? null)
+      setError(e instanceof Error ? e.message : "Gagal memuat status generate")
+      if (redirectOnError) {
+        setAppState("setup")
+        goHomePath()
+      }
+    } finally {
+      progressRequestInFlightRef.current = false
+      if (showLoading) {
+        setProgressLoading(false)
+        setShowProgressOverlay(false)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!getAuthToken()) return
 
-    api.me()
-      .then(setAuthUser)
-      .catch(() => clearAuthToken())
-      .finally(() => setAuthReady(true))
-  }, [])
+    async function bootstrapAuth() {
+      try {
+        const sessionId = getGenerateSessionIdFromPath()
+        if (sessionId) {
+          const cachedStatus = loadCachedProgressStatus(sessionId)
+          if (cachedStatus) {
+            setProgressStatus(cachedStatus)
+          }
+          setAppState("progress")
+        }
+        const user = await api.me()
+        setAuthUser(user)
+        if (sessionId) {
+          void loadProgressSession(sessionId, { showLoading: true, redirectOnError: true })
+        }
+      } catch {
+        clearAuthToken()
+      } finally {
+        setAuthReady(true)
+      }
+    }
+
+    void bootstrapAuth()
+  }, [loadProgressSession])
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -66,69 +192,126 @@ function App() {
     handleReset()
   }
 
-  async function handleStart(formUrl: string, count: number, reviewMode: boolean) {
-    setPendingUrl(formUrl)
-    setPendingCount(count)
-    setPendingReviewMode(reviewMode)
+  async function handleOpenHistory() {
+    setAccountOpen(false)
+    setHistoryLoading(true)
+    setError(null)
+    try {
+      const items = await api.getProfileHistory()
+      setHistoryItems(items)
+      setAppState("history")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal memuat history")
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  function handleRefreshProgress() {
+    const sessionId = progressStatus?.session_id || getGenerateSessionIdFromPath()
+    if (sessionId) void loadProgressSession(sessionId, { showLoading: false })
+  }
+
+  useEffect(() => {
+    if (appState !== "progress" || progressStatus?.status !== "running") return
+
+    const timerId = window.setInterval(() => {
+      const sessionId = progressStatus.session_id || getGenerateSessionIdFromPath()
+      if (sessionId) void loadProgressSession(sessionId, { showLoading: false, redirectOnError: false })
+    }, 1500)
+
+    return () => window.clearInterval(timerId)
+  }, [appState, loadProgressSession, progressStatus?.session_id, progressStatus?.status])
+
+  async function handleScan(formUrl: string) {
+    const trimmedUrl = formUrl.trim()
+    if (!trimmedUrl) return
+    setScanLoading(true)
+    setError(null)
+    try {
+      const result = await api.parse(trimmedUrl)
+      setScannedForm({
+        url: trimmedUrl,
+        schema: result.schema_,
+        sessionId: result.session_id,
+      })
+    } catch (e) {
+      setScannedForm(null)
+      setError(e instanceof Error ? e.message : "Gagal scan Google Form")
+    } finally {
+      setScanLoading(false)
+    }
+  }
+
+  function handleClearScan() {
+    setScannedForm(null)
+    setGenerationConfig(DEFAULT_GENERATION_CONFIG)
+  }
+
+  function handleResetConfig() {
+    setGenerationConfig(DEFAULT_GENERATION_CONFIG)
+  }
+
+  function handleOpenScanConfig() {
+    if (!scannedForm) return
+    setAppState("scanConfig")
+  }
+
+  function handleStart(formUrl: string, count: number, reviewMode: boolean) {
+    const activeScan = scannedForm
+    if (!activeScan || activeScan.url !== formUrl.trim()) {
+      setError("Scan Google Form dulu sebelum generate")
+      return
+    }
+    setConfirmStart({ formUrl, count, reviewMode })
+  }
+
+  async function confirmGenerate() {
+    const pending = confirmStart
+    const activeScan = scannedForm
+    if (!pending || !activeScan || activeScan.url !== pending.formUrl.trim()) {
+      setConfirmStart(null)
+      setError("Scan Google Form dulu sebelum generate")
+      return
+    }
+
+    setConfirmStart(null)
+    setPendingUrl(pending.formUrl)
     setError(null)
     setStreamLogs([])
-    setCurrentProvider("")
-    setAppState("loading")
+    setStartingGenerate(true)
 
-    batchRunStream(formUrl, count, reviewMode, async (event: SSEEvent) => {
-      if (event.type === "log") {
-        setStreamLogs((logs) => [...logs.slice(-80), event.data.message])
-      }
-
-      if (event.type === "provider") {
-        setCurrentProvider(event.data.provider)
-        const label = event.data.iteration
-          ? `Persona ${event.data.iteration}: using ${event.data.provider}`
-          : `Using ${event.data.provider}`
-        setStreamLogs((logs) => [...logs.slice(-80), label])
-      }
-
-      if (event.type === "error") {
-        setError(event.data.message)
-        setAppState("setup")
-      }
-
-      if (event.type === "complete") {
-        const result = event.data
-        if (reviewMode) {
-          const validResults = result.results
-            .filter((r) => r.answers && Object.keys(r.answers).length > 0)
-            .map((r) => ({
-              answers: r.answers,
-              tokens_used: r.tokens_used,
-              retries: r.retries ?? 0,
-            }))
-          if (validResults.length === 0) {
-            setError(result.results[0]?.error_message ?? "Gagal generate persona")
-            setAppState("setup")
-            return
-          }
-          const parseResult = await api.parse(formUrl)
-          setReviewSchema(parseResult.schema_)
-          setReviewSessionId(parseResult.session_id)
-          setReviewResults(validResults)
-          setAppState("review")
-        } else {
-          setBatchResult(result)
-          setAppState("result")
-        }
-      }
-    })
+    try {
+      const status = await api.startBatchJob(
+        pending.formUrl,
+        pending.count,
+        pending.reviewMode,
+        activeScan.sessionId,
+        normalizeGenerationConfig(generationConfig),
+      )
+      goGeneratePath(status.session_id)
+      cacheProgressStatus(status)
+      setProgressStatus(status)
+      setStreamLogs(["Background job dimulai di backend. Halaman ini aman direload."])
+      setAppState("progress")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal memulai background job")
+      setAppState("setup")
+    } finally {
+      setStartingGenerate(false)
+    }
   }
 
   function handleReset() {
+    goHomePath()
     setAppState("setup")
     setBatchResult(null)
+    setProgressStatus(null)
+    setHistoryItems(null)
     setReviewSchema(null)
     setReviewResults([])
     setError(null)
     setStreamLogs([])
-    setCurrentProvider("")
   }
 
   return (
@@ -223,6 +406,17 @@ function App() {
                       <button
                         type="button"
                         role="menuitem"
+                        onClick={() => {
+                          void handleOpenHistory()
+                        }}
+                        className="flex w-full items-center gap-2 border-b-2 border-solid border-(--color-ink) px-3 py-2 text-left font-bold text-(--color-ink) hover:bg-(--color-candy-blush) focus-visible:outline-none focus-visible:bg-(--color-candy-blush)"
+                      >
+                        <History className="h-4 w-4" strokeWidth={3} />
+                        HISTORY
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
                         onClick={handleLogout}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left font-bold bg-(--color-destructive) text-(--color-ink) hover:bg-(--color-bg-alt) hover:text-(--color-destructive) focus-visible:outline-none focus-visible:bg-(--color-bg-alt) focus-visible:text-(--color-destructive)"
                       >
@@ -253,8 +447,21 @@ function App() {
         className="relative brutal-center pt-4 md:pt-8 pb-32 md:pb-16 max-[340px]:px-4"
         style={{ animation: "var(--animate-fade-in)" }}
       >
-        {!authReady && (
-          <div className="font-mono text-xs font-bold">Loading account...</div>
+        {!authReady && getGenerateSessionIdFromPath() && loadCachedProgressStatus(getGenerateSessionIdFromPath()) && (
+          <BatchProgressStep
+            status={loadCachedProgressStatus(getGenerateSessionIdFromPath()) as BatchSessionStatus}
+            loading={false}
+            onRefresh={handleRefreshProgress}
+            onReset={handleReset}
+          />
+        )}
+
+        {!authReady && getGenerateSessionIdFromPath() && !loadCachedProgressStatus(getGenerateSessionIdFromPath()) && (
+          <div className="min-h-[42vh]" />
+        )}
+
+        {!authReady && !getGenerateSessionIdFromPath() && (
+          <div className="min-h-[42vh]" />
         )}
 
         {authReady && !authUser && (
@@ -262,7 +469,18 @@ function App() {
         )}
 
         {authReady && authUser && appState === "setup" && (
-          <BatchSetupStep onStart={handleStart} loading={false} error={error} />
+          <BatchSetupStep
+            url={setupUrl}
+            onUrlChange={setSetupUrl}
+            onScan={handleScan}
+            onClearScan={handleClearScan}
+            onStart={handleStart}
+            onOpenConfig={handleOpenScanConfig}
+            loading={false}
+            scanLoading={scanLoading}
+            error={error}
+            scannedForm={scannedForm}
+          />
         )}
 
         {authReady && authUser && appState === "profile" && (
@@ -273,13 +491,30 @@ function App() {
           />
         )}
 
-        {authReady && authUser && appState === "loading" && (
-          <LoadingStep
-            count={pendingCount}
-            formUrl={pendingUrl}
-            reviewMode={pendingReviewMode}
-            streamLogs={streamLogs}
-            currentProvider={currentProvider}
+        {authReady && authUser && appState === "history" && (
+          <HistoryStep initialHistory={historyItems ?? undefined} onBack={() => setAppState("setup")} />
+        )}
+
+        {authReady && authUser && appState === "scanConfig" && scannedForm && (
+          <ScanConfigStep
+            scannedForm={scannedForm}
+            config={generationConfig}
+            onConfigChange={setGenerationConfig}
+            onResetConfig={handleResetConfig}
+            onBack={() => setAppState("setup")}
+          />
+        )}
+
+        {authReady && authUser && appState === "progress" && !progressStatus && (
+          <div className="min-h-[42vh]" />
+        )}
+
+        {authReady && authUser && appState === "progress" && progressStatus && (
+          <BatchProgressStep
+            status={progressStatus}
+            loading={progressLoading}
+            onRefresh={handleRefreshProgress}
+            onReset={handleReset}
           />
         )}
 
@@ -300,6 +535,44 @@ function App() {
         )}
       </main>
 
+      {!authReady && !getGenerateSessionIdFromPath() && <LoadingOverlay title="MEMUAT AKUN" message="Mengambil data login dari backend." />}
+
+      {showProgressOverlay && <BatchProgressShell />}
+
+      {startingGenerate && <LoadingOverlay title="MULAI GENERATE" message="Menyiapkan session background. Setelah siap, halaman akan pindah ke progress." />}
+
+      {historyLoading && <LoadingOverlay title="MEMUAT HISTORY" message="Mengambil history form dari storage." />}
+
+      {scanLoading && <LoadingOverlay title="SCAN FORM" message="Membaca struktur Google Form dan menyiapkan konfigurasi." />}
+
+      {confirmStart && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-(--color-ink)/55 px-4 backdrop-blur-sm" onClick={() => setConfirmStart(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm border-brutal bg-(--color-bg-alt) text-(--color-ink) shadow-brutal-lg p-5 text-center"
+            style={{ animation: "var(--animate-pop)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center border-brutal-2 bg-(--color-candy-blush) text-(--color-brutal-pink) shadow-brutal-sm">
+              <WandSparkles className="h-7 w-7" strokeWidth={3} />
+            </div>
+            <div className="font-display text-lg leading-tight">LANJUT GENERATE?</div>
+            <div className="mx-auto mt-2 max-w-64 font-mono text-[11px] leading-relaxed text-(--color-ink-soft)">
+              Pastikan konfigurasi scan sekarang sudah sesuai sebelum AI mulai membuat jawaban.
+            </div>
+            <div className="mt-5 space-y-2">
+              <Button onClick={confirmGenerate} variant="default" size="lg" className="w-full">
+                YA, LANJUT
+              </Button>
+              <Button onClick={() => setConfirmStart(null)} variant="outline" size="lg" className="w-full">
+                BATAL
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer (desktop only) */}
       <footer className="hidden md:block border-t-[3px] border-(--color-ink) bg-(--color-ink) text-(--color-bg-alt)">
         <div className="brutal-center py-6 flex items-center justify-between font-mono text-xs">
@@ -316,5 +589,8 @@ function App() {
   )
 }
 
+function BatchProgressShell() {
+  return <LoadingOverlay title="MEMUAT PROGRESS" message="Mengambil session dari backend. Job tetap berjalan, jangan klik generate ulang." />
+}
 export default App
 
