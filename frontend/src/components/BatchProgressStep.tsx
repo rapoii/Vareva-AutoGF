@@ -99,9 +99,9 @@ export function BatchProgressStep({ status, loading = false, onRefresh, onReset 
     "Initializing AI pipeline...",
     "Loading provider chain: Gemini → Groq → Cerebras → OpenRouter",
     `Estimated time: ~${Math.max(15, activeStatus.count * 5)}s`,
-    `Processing request_${activeStatus.session_id.replace(/^ses_/, "").slice(0, 4)}...`,
+    `Processing saved session request_${activeStatus.session_id.replace(/^ses_/, "").slice(0, 4)}...`,
     `Using scanned form schema: ${activeStatus.form_title || "Google Form Submission"}`,
-    `Background job ${isRunning ? "running" : activeStatus.status} on backend`,
+    `Progress is saved and reload-safe: ${isRunning ? "processing" : activeStatus.status}`,
     ...results.map((item) => {
       const label = item.submit_status === "success" ? "Submit success" : item.submit_status === "pending_review" ? "Ready for review" : "Submit failed"
       return `Iterasi ${String(item.iteration).padStart(2, "0")}: ${label} · HTTP ${item.http_code} · ${item.tokens_used} tokens · ${item.retries} retries`
@@ -299,7 +299,7 @@ export function BatchProgressStep({ status, loading = false, onRefresh, onReset 
             })
           ) : (
             <div className="w-full border-brutal bg-(--color-candy-peach) text-(--color-ink) shadow-brutal-lg p-4 font-mono text-xs leading-relaxed">
-              Belum ada submit sukses yang tersimpan untuk session ini.
+              Belum ada hasil tersimpan untuk session ini. Processing akan lanjut otomatis selama halaman ini terbuka.
             </div>
           )}
         </div>
@@ -340,7 +340,7 @@ export function BatchProgressStep({ status, loading = false, onRefresh, onReset 
             <PixelStar size={16} /> TIP
           </div>
           <div className="font-mono text-xs leading-relaxed">
-            Klik card iterasi untuk melihat detail jawaban yang tersimpan. Halaman ini aman direload karena progress dibaca dari session backend.
+            Klik card iterasi untuk melihat detail jawaban yang tersimpan. Halaman ini aman direload karena progress dibaca dari storage.
           </div>
         </div>
       </aside>

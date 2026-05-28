@@ -20,6 +20,10 @@ class BatchRunRequest(CustomModel):
     generation_config: GenerationConfig | None = None
 
 
+class BatchProcessRequest(CustomModel):
+    max_iterations: int = Field(default=1, ge=1, le=1)
+
+
 class IterationResult(CustomModel):
     iteration: int
     persona_text: str

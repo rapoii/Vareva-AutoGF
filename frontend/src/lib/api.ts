@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
+const BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : "http://127.0.0.1:8000")
 const TOKEN_KEY = "vareva_auth_token"
 
 export function getAuthToken() {
@@ -188,24 +188,59 @@ export interface SSEErrorEvent {
 
 export type SSEEvent = SSESessionStartedEvent | SSELogEvent | SSEProviderEvent | SSEIterationResultEvent | SSECompleteEvent | SSEErrorEvent
 
+const API_LOADING_EVENT = "vareva-api-loading"
+const SILENT_LOADING_PATHS = ["/api/batch/sessions/"]
+let activeLoadingRequests = 0
+
+export interface ApiLoadingEventDetail {
+  active: boolean
+  path: string
+}
+
+function shouldShowApiLoading(path: string) {
+  return !SILENT_LOADING_PATHS.some((prefix) => path.startsWith(prefix) && path.endsWith("/process"))
+}
+
+function emitApiLoading(active: boolean, path: string) {
+  window.dispatchEvent(new CustomEvent<ApiLoadingEventDetail>(API_LOADING_EVENT, { detail: { active, path } }))
+}
+
+export function subscribeApiLoading(listener: (detail: ApiLoadingEventDetail) => void) {
+  const handler = (event: Event) => listener((event as CustomEvent<ApiLoadingEventDetail>).detail)
+  window.addEventListener(API_LOADING_EVENT, handler)
+  return () => window.removeEventListener(API_LOADING_EVENT, handler)
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken()
-  const response = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
-  })
-
-  const data = await response.json().catch(() => null)
-  if (!response.ok) {
-    const detail = typeof data?.detail === "string" ? data.detail : "Request failed"
-    throw new Error(detail)
+  const showLoading = shouldShowApiLoading(path)
+  if (showLoading) {
+    activeLoadingRequests += 1
+    emitApiLoading(true, path)
   }
+  try {
+    const response = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init?.headers,
+      },
+    })
 
-  return data as T
+    const data = await response.json().catch(() => null)
+    if (!response.ok) {
+      const detail = typeof data?.detail === "string" ? data.detail : "Request failed"
+      throw new Error(detail)
+    }
+
+    return data as T
+  } finally {
+    if (showLoading) {
+      activeLoadingRequests = Math.max(0, activeLoadingRequests - 1)
+      if (activeLoadingRequests === 0) emitApiLoading(false, path)
+    }
+  }
 }
 
 function normalizeParseResponse(data: FormSchema | ParseResponse): ParseResponse {
@@ -331,6 +366,13 @@ export const api = {
 
   async getBatchSession(sessionId: string): Promise<BatchSessionStatus> {
     return requestJson<BatchSessionStatus>(`/api/batch/sessions/${encodeURIComponent(sessionId)}`)
+  },
+
+  async processBatchSession(sessionId: string, maxIterations = 1): Promise<BatchSessionStatus> {
+    return requestJson<BatchSessionStatus>(`/api/batch/sessions/${encodeURIComponent(sessionId)}/process`, {
+      method: "POST",
+      body: JSON.stringify({ max_iterations: maxIterations }),
+    })
   },
 
   async updateReviewAnswers(

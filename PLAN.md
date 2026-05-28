@@ -1,149 +1,187 @@
-# Plan - Background Generate Job yang Tetap Jalan Setelah Reload
+# Plan - Vercel-only Frontend + Backend Deployment
 
 ## Context
-Implementasi sebelumnya membuat halaman `/generate/{session_id}` supaya reload tidak memulai generate ulang. Itu sudah mencegah API key usage dobel, tapi proses generate+submit masih berjalan di dalam koneksi SSE. Akibatnya kalau browser reload atau koneksi SSE putus, worker request bisa berhenti dan batch mandek di item terakhir yang tersimpan.
+User wants both frontend and backend to run on Vercel because Render/Koyeb require a payment card and PythonAnywhere free only exposes WSGI, which does not fit this FastAPI ASGI app well. The current app is React/Vite + FastAPI. It already supports reload-safe `/generate/{session_id}` pages, Google Sheets storage, review-mode editing, and submit-all.
 
-Target baru: setelah user menekan generate, backend harus menjalankan proses batch di latar belakang yang tidak bergantung pada tab/browser. Halaman progress hanya membaca dan memantau session yang sedang berjalan. Reload browser tidak menghentikan job dan tidak memulai job baru.
+The blocker is not FastAPI itself; it is the current backend execution model. The current `/api/batch/jobs` starts an in-process `threading.Thread` background worker. Vercel serverless functions cannot keep daemon threads alive after the request returns, cannot rely on local SQLite, and are a poor fit for long SSE streams. To deploy both frontend and backend on Vercel, batch processing must become short-lived, idempotent, and driven step-by-step with durable Google Sheets state.
 
 ## Recommended Approach
-Gunakan background job in-process di FastAPI sebagai langkah minimal yang sesuai project sekarang. Repo belum punya Redis/Celery/RQ/queue worker, dan fungsi generation/submission masih synchronous. Maka backend akan:
+Keep React/Vite and keep the existing FastAPI app, but run FastAPI behind Vercel Python serverless functions. Replace the in-process background batch job with a client-orchestrated, serverless-safe processing loop:
 
-- [x] Membuat session terlebih dahulu.
-- [x] Menjalankan batch di thread/background task terpisah dengan DB session/storage baru milik worker.
-- [x] Mengembalikan `session_id` langsung ke frontend.
-- [x] Frontend membuka `/generate/{session_id}` dan polling/refresh status dari storage.
+- [x] `POST /api/batch/jobs` creates a durable session and saves schema/config, but does not start a thread.
+- [x] Frontend navigates to `/generate/{session_id}` and starts a process loop.
+- [x] Each loop calls `POST /api/batch/sessions/{session_id}/process`.
+- [x] The backend processes at most one missing iteration per request, persists the result to Google Sheets, updates session counts/status, and returns `BatchSessionStatus`.
+- [x] The frontend renders progress from stored state and repeats until `completed`/`failed`.
+- [x] If the user reloads `/generate/{session_id}`, the app fetches stored status and resumes processing only missing iterations.
 
-Solusi ini membuat job tetap lanjut saat browser reload/putus selama process backend masih hidup. Batasannya: kalau server/backend restart, job in-process hilang. Queue durable seperti Redis/Celery bisa jadi fase lanjutan, tapi terlalu besar untuk kebutuhan cepat sekarang.
+This keeps the reload-safe behavior and avoids Vercel background-thread loss. Google Sheets remains the source of truth in production; SQLite remains local/dev only.
 
 ## Critical Files
 
-- [x] `backend/app/routes/batch.py` — pisahkan start job dari loop batch; tambah endpoint start job dan worker function; stream endpoint tidak lagi menjadi pemilik proses utama.
-- [x] `backend/app/db.py` — reuse SQLModel `engine` untuk membuat DB session baru di background worker; jangan pakai request-scoped `SessionDep` di worker.
-- [x] `backend/app/core/storage/service.py` — reuse `AppStorage`; tambah storage helper kecil jika perlu untuk progress/log events.
-- [x] `backend/app/schemas/batch.py` — tambah response schema `BatchJobStartResponse` bila dibutuhkan.
-- [x] `frontend/src/lib/api.ts` — tambah API start job, status tetap reuse `getBatchSession`.
-- [x] `frontend/src/App.tsx` — `confirmGenerate` berubah dari membuka `batchRunStream` menjadi start job + navigate progress; progress page refresh membaca status.
-- [x] `frontend/src/components/LoadingStep.tsx` dan `frontend/src/components/BatchProgressStep.tsx` — loading/progress copy disesuaikan: proses berjalan di backend, reload aman.
-- [x] `scripts/google_apps_script/Code.gs.txt` — tetap support session detail/logs/status; update hanya kalau butuh field tambahan.
+- [x] `backend/app/routes/batch.py` — remove thread dependency from active flow, add process endpoint, refactor batch loop into single-iteration helper.
+- [x] `backend/app/schemas/batch.py` — add request schema for process endpoint if needed (`max_iterations`, default 1).
+- [x] `backend/app/core/storage/service.py` — reuse existing session/log/schema helpers; add minimal helpers only if needed for stored generation config or processing status.
+- [x] `frontend/src/lib/api.ts` — add `processBatchSession(sessionId, maxIterations?)`; remove active dependence on `batchRunStream`.
+- [x] `frontend/src/App.tsx` — replace passive polling-only progress with a guarded process loop that calls `/process` while status is running.
+- [x] `frontend/src/components/BatchProgressStep.tsx` — mostly keep existing status-driven UI; adjust copy from “background job” to saved/resumable processing.
+- [x] `api/app.py` — expose existing FastAPI `app` to Vercel Python functions.
+- [x] `vercel.json` — configure frontend build, Python API routing, and SPA rewrites.
+- [x] `docs/DEPLOYMENT_FREE.md`, `README.md`, `docs/PRODUCTION.md` — update deployment docs to Vercel-only.
 
 ## Backend Design
 
-### 1. Start job endpoint
-Tambahkan endpoint baru, misalnya:
+### 1. Make `/api/batch/jobs` Vercel-safe
 
-```py
-@router.post("/jobs", response_model=BatchSessionStatus)
-def start_batch_job(req: BatchRunRequest, db: SessionDep, user: StoredUser = Depends(get_current_user)):
-```
+Current behavior starts `_start_batch_thread(...)`. New behavior:
 
-Flow endpoint:
-- [x] Resolve schema dari scan/session seperti sekarang dengan `_resolve_form_schema`.
+- [x] Resolve form schema via `_resolve_form_schema`.
 - [x] Normalize generation config.
-- [x] Create `stored_session` status `running`.
-- [x] Save schema ke storage.
-- [x] Start background thread/task dengan primitive data:
-  - [x] `session_id`
-  - [x] `user_id`
-  - [x] `form_url`
-  - [x] `count`
-  - [x] `skip_submit`
-  - [x] `generation_config`
-- [x] Return `BatchSessionStatus` langsung dengan `results=[]`.
+- [x] Create storage session with `status="running"` and mode `review`/`auto`.
+- [x] Save schema.
+- [x] Persist generation config for later `/process` calls.
+- [x] Return `BatchSessionStatus` with existing logs.
+- [x] Do not start a thread or SSE worker.
 
-### 2. Background worker function
-Buat function private di `backend/app/routes/batch.py`, misalnya:
+### 2. Add bounded process endpoint
 
-```py
-def _run_batch_job(session_id: str, req_data: dict, user_id: str) -> None:
+Add:
+
+```http
+POST /api/batch/sessions/{session_id}/process
 ```
 
-Worker harus:
-- [x] Membuat DB session baru sendiri:
-  - [x] `with Session(engine) as db:` untuk SQLite mode.
-  - [x] `AppStorage(db)` tetap bisa membuat Google Sheets client jika storage backend Google Sheets.
-- [x] Load schema dari `session_id`.
-- [x] Analyze schema.
-- [x] Load answer history dan used persona names.
-- [x] Generate personas.
-- [x] Per persona:
-  - [x] generate answers dengan `custom_answers`
-  - [x] submit jika auto mode
-  - [x] append generated persona log dan submission log **hanya kalau submit sukses** sesuai rule sebelumnya
-  - [x] update session result setelah tiap iterasi sukses/gagal supaya progress page naik real-time
-- [x] Pada selesai: `update_session_result(..., status="completed")`.
-- [x] Pada fatal error: `update_session_result(..., status="failed")` dan log warning.
+Initial implementation processes exactly one iteration per call to stay within Vercel limits.
 
-### 3. Progress data source
-Endpoint `GET /api/batch/sessions/{session_id}` tetap menjadi source of truth progress page.
-- [x] Count success/fail dari logs tersimpan seperti fix terakhir.
-- [x] Gunakan session `status` untuk `running/completed/failed`.
-- [x] Karena logs disimpan per iterasi sukses, progress page bisa menunjukkan item yang sudah benar-benar submit sukses.
+Flow:
 
-### 4. Existing run-stream compatibility
-Ada dua opsi:
-- [x] Keep `/run-stream` untuk backward compatibility, tapi ubah supaya start job lalu emit `session_started` dan polling status sampai completed.
-- [x] Atau frontend baru tidak pakai `/run-stream`, endpoint lama dibiarkan untuk flow lama.
+- [x] Load session by user and validate ownership.
+- [x] Load saved schema and generation config.
+- [x] Load existing logs and determine next missing iteration.
+- [x] If all iterations exist, update status `completed` and return current status.
+- [x] Generate one persona/answer set using existing generator functions and answer history.
+- [x] Review mode: append submission log with `submit_status="pending_review"`.
+- [x] Auto mode: submit immediately, then append/update logs with success/fail.
+- [x] Update session result after the iteration.
+- [x] Return fresh `BatchSessionStatus`.
 
-Rekomendasi: frontend langsung pakai `/jobs` agar reload-safe behavior jelas. `/run-stream` boleh tetap ada sementara supaya tidak terlalu banyak refactor.
+### 3. Keep review editing and submit-all
+
+Keep:
+
+- [x] `PATCH /api/batch/sessions/{session_id}/iterations/{iteration}/answers`
+- [x] `POST /api/batch/sessions/{session_id}/submit-reviewed`
+
+- [ ] If submit-all times out on Vercel for larger batches, split it in a later patch into a similar `submit-reviewed/process` endpoint.
 
 ## Frontend Design
 
-### 1. Start flow
-Di `App.confirmGenerate`:
-- [x] Jangan panggil `batchRunStream` untuk flow baru.
-- [x] Panggil `api.startBatchJob(...)`.
-- [x] Simpan response ke `progressStatus`.
-- [x] Navigate ke `/generate/{session_id}`.
-- [x] Set `appState="progress"`.
+### 1. API client
 
-### 2. Progress page update
-- [x] `BatchProgressStep` tetap punya tombol `REFRESH STATUS`.
-- [x] Tambahkan auto refresh ringan saat `status === "running"`, misalnya setiap 3-5 detik, lewat `App.tsx` effect atau internal component callback.
+Add to `frontend/src/lib/api.ts`:
 
-### 3. Reload behavior
-Saat URL `/generate/{session_id}` dibuka/reload:
-- [x] `App.tsx` fetch `api.getBatchSession(session_id)`.
-- [x] Tidak start job baru.
-- [x] Kalau status masih `running`, auto refresh akan lanjut memantau sampai status terminal.
+```ts
+processBatchSession(sessionId: string, maxIterations = 1): Promise<BatchSessionStatus>
+```
 
-### 4. Review mode
-Minimal untuk fase ini:
-- [x] Background job review mode boleh menghasilkan answers dan menyimpan hasil sebagai `pending_review` log supaya bisa dibuka ulang setelah reload.
-- [x] Jika ini terlalu banyak untuk sekali patch, review mode tetap bisa start job tetapi progress page hanya menunjukkan bahwa generated answers belum bisa direview setelah reload. Namun target ideal adalah persist generated review answers agar review page bisa dibangun ulang.
+### 2. Progress processing loop
 
-## Verification
+In `frontend/src/App.tsx`:
 
-1. **Backend tests**
-   - [x] Run `python -m pytest backend`.
-   - [x] Pastikan status endpoint tetap valid.
-   - [x] Tambah test unit ringan untuk start job kalau feasible tanpa memanggil provider asli.
+- [x] Keep `startBatchJob` to create the durable session.
+- [x] After navigation to `/generate/{session_id}`, start a guarded processing loop.
+- [x] Reuse/extend existing in-flight refs so only one process call runs at a time.
+- [x] While status is `running`/`queued`:
+  - [x] call `processBatchSession(session_id, 1)`;
+  - [x] cache returned status in `sessionStorage`;
+  - [x] render progress;
+  - [x] wait a small delay before next call;
+  - [x] stop on `completed`/`failed`.
+- [x] On reload of `/generate/{session_id}`:
+  - [x] fetch `getBatchSession`;
+  - [x] if session still running and results are incomplete, resume loop.
 
-2. **Frontend checks**
-   - [x] Run `npm run build --prefix frontend`.
-   - [x] Run `npm run lint --prefix frontend` bila memungkinkan.
+### 3. Progress UI copy
 
-3. **Manual QA**
-   - [x] Scan form, set custom name/config, start auto generate count 3.
-   - [x] Setelah URL `/generate/{session_id}` muncul, reload browser.
-   - [x] Pastikan backend tetap melanjutkan item 2 dan 3 tanpa user klik generate ulang.
-   - [x] Tekan refresh/auto refresh: stored results bertambah sampai 3/3.
-   - [x] Pastikan spreadsheet menerima semua submit sukses.
-   - [x] Pastikan nama pada system/result/spreadsheet mengikuti custom answer.
-   - [x] Tutup tab setelah item 1, tunggu, buka lagi `/generate/{session_id}`: progress sudah lanjut/selesai.
+In `BatchProgressStep`, replace backend-thread wording like “Background job running on backend” with copy such as:
 
-   Catatan: checklist manual QA ditutup berdasarkan coverage otomatis untuk start job, stream polling, reload-safe status endpoint, dan build/lint. Tes manual browser + spreadsheet asli tetap direkomendasikan sebelum dipakai produksi.
+- “Processing saved session...”
+- “Progress is saved and reload-safe”
+- “Waiting stored results: X/Y”
+
+Keep edit/submit-all UI intact.
+
+## Vercel Deployment Design
+
+Use root `vercel.json` with:
+
+- [x] frontend build from `frontend/`;
+- [x] output `frontend/dist`;
+- [x] `/api/*` routed to Python FastAPI entrypoint;
+- [x] SPA fallback to `index.html` after API rewrite.
+
+Production env vars on Vercel should force:
+
+```env
+STORAGE_BACKEND=google_sheets
+GOOGLE_SHEETS_SCRIPT_URL=...
+GOOGLE_SHEETS_SHARED_SECRET=...
+GOOGLE_SHEETS_TIMEOUT_SECONDS=60
+AUTH_SECRET_KEY=...
+AUTH_TOKEN_EXPIRE_MINUTES=10080
+OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=...
+OPENROUTER_FALLBACK_MODELS=...
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash-lite
+GROQ_API_KEY=...
+GROQ_MODEL=llama-3.3-70b-versatile
+CEREBRAS_API_KEY=...
+CEREBRAS_MODEL=...
+CORS_ORIGINS=https://your-vercel-domain.vercel.app,http://localhost:5173
+```
+
+Frontend can use same-origin `/api` when Vercel routes API and static frontend together.
 
 ## Risks and Mitigations
 
-- **Server restart menghentikan job** — diterima untuk fase in-process; dokumentasikan sebagai limitasi.
-- **Multiple backend workers** — in-process jobs tidak cocok multi-worker; jalankan satu worker atau nanti pindah ke Redis queue.
-- **Request-scoped DB session bocor ke worker** — worker wajib membuat session sendiri dari `engine`.
-- **Progress logs tidak lengkap** — update session counts setelah tiap iterasi dan simpan logs per iterasi.
-- **Review mode reload** — kalau perlu full resume review, persist pending review answers sebagai logs/status.
+- **Vercel function timeout during AI generation** — process one iteration per call; keep count modest; surface retry errors.
+- **Duplicate processing from multiple tabs** — frontend guard prevents most overlap; backend should always compute the next missing iteration from storage before generating.
+- **Google Sheets lock/timeout** — keep writes small; return clear 503; frontend can retry next loop.
+- **Auto mode long submit** — one iteration per request avoids one huge long-running submit batch.
+- **No durable queue** — acceptable for no-card/free deployment; durable queue can be added later if needed.
+- **Generation config persistence** — must be explicitly durable because Vercel process memory is not shared across requests.
+
+## Verification
+
+1. Backend checks:
+   - [x] `python -m pytest backend/tests/test_batch_jobs.py backend/tests/test_quality.py`
+   - [x] Add/adjust tests so `/jobs` creates a session without starting a thread.
+   - [ ] Add test for repeated `/process` calls completing a session.
+
+2. Frontend checks:
+   - [x] `npm run lint --prefix frontend`
+   - [x] `npm run build --prefix frontend`
+
+3. Local smoke:
+   - [ ] Scan authorized form.
+   - [ ] Start review mode count 2.
+   - [ ] Reload `/generate/{session_id}` after first result.
+   - [ ] Confirm processing resumes and second result appears.
+   - [ ] Edit one answer, submit all, confirm stored result changes.
+   - [ ] Run auto mode count 2 and confirm responses arrive.
+
+4. Vercel smoke:
+   - [ ] Deploy preview.
+   - [ ] Check `/` health or equivalent API health route.
+   - [ ] Check frontend root and deep link `/generate/{session_id}`.
+   - [ ] Run review count 1 against a test form.
+   - [ ] Confirm Google Sheets logs update.
 
 ## Out of Scope
 
-- Celery/RQ/Redis durable queue.
-- Job cancellation button.
-- Retry failed item otomatis.
-- Multi-process worker coordination.
+- Rewriting the app to Next.js.
+- Adding Redis/Upstash/QStash/Inngest/Trigger.dev.
+- Replacing Google Sheets storage.
+- True background processing after tab close. In Vercel-only/free mode, processing resumes when the frontend is open or reloaded.

@@ -34,11 +34,6 @@ def test_start_batch_job_creates_running_session(monkeypatch):
         "app.routes.parse.parse_form",
         lambda url: FORM_SCHEMA,
     )
-    monkeypatch.setattr(
-        "app.routes.batch._start_batch_thread",
-        lambda session_id, req, user_id: None,
-    )
-
     parse_resp = client.post("/api/parse/", json={"url": FORM_URL}, headers=AUTH_HEADERS)
     assert parse_resp.status_code == 200
     session_id = parse_resp.json()["session_id"]
@@ -85,29 +80,24 @@ def test_run_stream_starts_background_job_and_completes_from_storage(monkeypatch
     assert parse_resp.status_code == 200
     session_id = parse_resp.json()["session_id"]
 
-    def fake_start_batch_thread(started_session_id, req, user_id):
-        from sqlmodel import Session
-        from app.core.storage.service import AppStorage
-        from app.db import engine
+    def fake_process_one_iteration(storage, started_session_id, user_id):
+        storage.append_submission_log(
+            session_id=started_session_id,
+            iteration=1,
+            answers={"entry.name": "Rafi"},
+            submit_status="success",
+            form_url=FORM_URL,
+            persona_text="Rafi, 25 thn, Mahasiswa (Jakarta)",
+            http_code=200,
+            tokens_used=10,
+            retries=0,
+            provider="test",
+            user_id=user_id,
+        )
+        storage.update_session_result(started_session_id, 1, 0, status="completed")
+        return __import__("app.routes.batch", fromlist=["_status_from_storage"])._status_from_storage(storage, started_session_id, user_id)
 
-        with Session(engine) as db:
-            storage = AppStorage(db)
-            storage.append_submission_log(
-                session_id=started_session_id,
-                iteration=1,
-                answers={"entry.name": "Rafi"},
-                submit_status="success",
-                form_url=req.form_url,
-                persona_text="Rafi, 25 thn, Mahasiswa (Jakarta)",
-                http_code=200,
-                tokens_used=10,
-                retries=0,
-                provider="test",
-                user_id=user_id,
-            )
-            storage.update_session_result(started_session_id, 1, 0, status="completed")
-
-    monkeypatch.setattr("app.routes.batch._start_batch_thread", fake_start_batch_thread)
+    monkeypatch.setattr("app.routes.batch._process_one_iteration", fake_process_one_iteration)
 
     with client.stream(
         "POST",

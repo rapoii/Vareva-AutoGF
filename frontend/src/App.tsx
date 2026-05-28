@@ -11,7 +11,7 @@ import { ProfileStep } from "@/components/ProfileStep"
 import { HistoryStep } from "@/components/HistoryStep"
 import { ScanConfigStep } from "@/components/ScanConfigStep"
 import { FloatingPixels, PixelRobot, PixelSparkle } from "@/components/PixelDecor"
-import { api, clearAuthToken, getAuthToken, type AuthUser, type BatchRunResponse, type BatchSessionStatus, type FormSchema, type GenerateResponse, type GenerationConfig, type ProfileHistoryItem } from "@/lib/api"
+import { api, clearAuthToken, getAuthToken, subscribeApiLoading, type AuthUser, type BatchRunResponse, type BatchSessionStatus, type FormSchema, type GenerateResponse, type GenerationConfig, type ProfileHistoryItem } from "@/lib/api"
 
 type AppState = "setup" | "review" | "result" | "profile" | "history" | "scanConfig" | "progress"
 
@@ -85,7 +85,9 @@ function App() {
   const [batchResult, setBatchResult] = useState<BatchRunResponse | null>(null)
   const [progressStatus, setProgressStatus] = useState<BatchSessionStatus | null>(null)
   const [progressLoading, setProgressLoading] = useState(false)
+  const [processRetryTick, setProcessRetryTick] = useState(0)
   const [showProgressOverlay, setShowProgressOverlay] = useState(false)
+  const [globalApiLoading, setGlobalApiLoading] = useState(false)
   const [startingGenerate, setStartingGenerate] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmStart, setConfirmStart] = useState<{ formUrl: string; count: number; reviewMode: boolean } | null>(null)
@@ -99,6 +101,7 @@ function App() {
   const [accountOpen, setAccountOpen] = useState(false)
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
   const progressRequestInFlightRef = useRef(false)
+  const processRequestInFlightRef = useRef(false)
 
   // Streaming state
   const [streamLogs, setStreamLogs] = useState<string[]>([])
@@ -137,6 +140,10 @@ function App() {
         setShowProgressOverlay(false)
       }
     }
+  }, [])
+
+  useEffect(() => {
+    return subscribeApiLoading((detail) => setGlobalApiLoading(detail.active))
   }, [])
 
   useEffect(() => {
@@ -207,21 +214,57 @@ function App() {
     }
   }
 
-  function handleRefreshProgress() {
+  async function handleRefreshProgress() {
     const sessionId = progressStatus?.session_id || getGenerateSessionIdFromPath()
-    if (sessionId) void loadProgressSession(sessionId, { showLoading: false })
+    if (!sessionId) return
+    await loadProgressSession(sessionId, { showLoading: false })
+    setProcessRetryTick((tick) => tick + 1)
   }
 
   useEffect(() => {
-    if (appState !== "progress" || progressStatus?.status !== "running") return
+    function resumeProcessingWhenVisible() {
+      if (document.visibilityState === "visible") {
+        setProcessRetryTick((tick) => tick + 1)
+      }
+    }
 
-    const timerId = window.setInterval(() => {
-      const sessionId = progressStatus.session_id || getGenerateSessionIdFromPath()
-      if (sessionId) void loadProgressSession(sessionId, { showLoading: false, redirectOnError: false })
-    }, 1500)
+    window.addEventListener("focus", resumeProcessingWhenVisible)
+    document.addEventListener("visibilitychange", resumeProcessingWhenVisible)
+    return () => {
+      window.removeEventListener("focus", resumeProcessingWhenVisible)
+      document.removeEventListener("visibilitychange", resumeProcessingWhenVisible)
+    }
+  }, [])
 
-    return () => window.clearInterval(timerId)
-  }, [appState, loadProgressSession, progressStatus?.session_id, progressStatus?.status])
+  useEffect(() => {
+    if (appState !== "progress" || !progressStatus || !["queued", "running"].includes(progressStatus.status)) return
+    if (progressStatus.results.length >= progressStatus.count) return
+
+    let cancelled = false
+    const timerId = window.setTimeout(async () => {
+      if (processRequestInFlightRef.current) return
+      processRequestInFlightRef.current = true
+      setError(null)
+      try {
+        const nextStatus = await api.processBatchSession(progressStatus.session_id, 1)
+        if (cancelled) return
+        cacheProgressStatus(nextStatus)
+        setProgressStatus(nextStatus)
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Gagal memproses session generate")
+          setProcessRetryTick((tick) => tick + 1)
+        }
+      } finally {
+        processRequestInFlightRef.current = false
+      }
+    }, processRetryTick > 0 ? 3500 : progressStatus.results.length > 0 ? 900 : 150)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timerId)
+    }
+  }, [appState, progressStatus, processRetryTick])
 
   async function handleScan(formUrl: string) {
     const trimmedUrl = formUrl.trim()
@@ -292,10 +335,10 @@ function App() {
       goGeneratePath(status.session_id)
       cacheProgressStatus(status)
       setProgressStatus(status)
-      setStreamLogs(["Background job dimulai di backend. Halaman ini aman direload."])
+      setStreamLogs(["Session tersimpan. Processing berjalan bertahap dan aman direload."])
       setAppState("progress")
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memulai background job")
+      setError(e instanceof Error ? e.message : "Gagal memulai session generate")
       setAppState("setup")
     } finally {
       setStartingGenerate(false)
@@ -418,7 +461,7 @@ function App() {
                         type="button"
                         role="menuitem"
                         onClick={handleLogout}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left font-bold bg-(--color-destructive) text-(--color-ink) hover:bg-(--color-bg-alt) hover:text-(--color-destructive) focus-visible:outline-none focus-visible:bg-(--color-bg-alt) focus-visible:text-(--color-destructive)"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left font-bold bg-(--color-destructive) text-(--color-destructive-foreground) hover:bg-(--color-bg-alt) hover:text-(--color-destructive) focus-visible:outline-none focus-visible:bg-(--color-bg-alt) focus-visible:text-(--color-destructive)"
                       >
                         <LogOut className="h-4 w-4" strokeWidth={3} />
                         LOGOUT
@@ -451,7 +494,7 @@ function App() {
           <BatchProgressStep
             status={loadCachedProgressStatus(getGenerateSessionIdFromPath()) as BatchSessionStatus}
             loading={false}
-            onRefresh={handleRefreshProgress}
+            onRefresh={() => void handleRefreshProgress()}
             onReset={handleReset}
           />
         )}
@@ -513,7 +556,7 @@ function App() {
           <BatchProgressStep
             status={progressStatus}
             loading={progressLoading}
-            onRefresh={handleRefreshProgress}
+            onRefresh={() => void handleRefreshProgress()}
             onReset={handleReset}
           />
         )}
@@ -537,9 +580,11 @@ function App() {
 
       {!authReady && !getGenerateSessionIdFromPath() && <LoadingOverlay title="MEMUAT AKUN" message="Mengambil data login dari backend." />}
 
+      {globalApiLoading && !startingGenerate && !scanLoading && !historyLoading && !showProgressOverlay && <LoadingOverlay title="SINKRONISASI DATA" message="Mengambil atau menyimpan data ke storage. Mohon tunggu sebentar." />}
+
       {showProgressOverlay && <BatchProgressShell />}
 
-      {startingGenerate && <LoadingOverlay title="MULAI GENERATE" message="Menyiapkan session background. Setelah siap, halaman akan pindah ke progress." />}
+      {startingGenerate && <LoadingOverlay title="MULAI GENERATE" message="Menyiapkan session tersimpan. Setelah siap, halaman akan pindah ke progress." />}
 
       {historyLoading && <LoadingOverlay title="MEMUAT HISTORY" message="Mengambil history form dari storage." />}
 
@@ -590,7 +635,7 @@ function App() {
 }
 
 function BatchProgressShell() {
-  return <LoadingOverlay title="MEMUAT PROGRESS" message="Mengambil session dari backend. Job tetap berjalan, jangan klik generate ulang." />
+  return <LoadingOverlay title="MEMUAT PROGRESS" message="Mengambil session tersimpan. Progress akan lanjut otomatis saat halaman terbuka." />
 }
 export default App
 

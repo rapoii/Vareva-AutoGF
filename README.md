@@ -16,13 +16,13 @@
 
 ## Overview
 
-Vareva AutoGF is a full-stack tool for parsing public Google Forms, generating realistic Indonesian personas and answers with AI, then either submitting automatically in a reload-safe background job or letting the user review, edit, and submit all generated answers manually.
+Vareva AutoGF is a full-stack tool for parsing public Google Forms, generating realistic Indonesian personas and answers with AI, then either submitting automatically through reload-safe saved processing or letting the user review, edit, and submit all generated answers manually.
 
 It is designed around three goals:
 
 - **Realistic Indonesian data** — gender-aware local names, natural occupations, cities, habits, and persona context.
 - **Low-token AI generation** — compact prompts, per-form answer history, local validation, and local-only similarity warnings.
-- **Operator-friendly workflow** — reload-safe progress pages, background batch jobs, provider fallback visibility, editable review UX, CSV/JSON/Excel export, and responsive neobrutalist UI.
+- **Operator-friendly workflow** — reload-safe progress pages, saved batch processing, provider fallback visibility, editable review UX, CSV/JSON/Excel export, and responsive neobrutalist UI.
 
 > Use responsibly. Only submit to forms you own, administer, or are authorized to test.
 
@@ -57,10 +57,10 @@ It is designed around three goals:
 ### Frontend UX
 
 - Neobrutalism + pixel-art interface.
-- Auto mode: generate and submit through a backend background job.
+- Auto mode: generate and submit through saved, serverless-safe processing.
 - Review mode: generate answers, inspect/edit stored answers, then submit all pending review iterations together.
 - Reload-safe `/generate/{session_id}` progress page backed by stored session state.
-- Scrollable real-time system log and progress polling.
+- Scrollable system log and client-driven progress processing.
 - Shared modal loading overlays for scan, auth, generate, submit, and history states.
 - Account profile page, separate form history page, and per-form history deletion.
 - Review warnings for suspicious answers.
@@ -180,7 +180,7 @@ flowchart LR
   G --> H[Local similarity warning]
   H --> I{Mode}
   I -->|Review| J[Store pending review answers]
-  I -->|Auto| K[Submit to Google Forms in background]
+  I -->|Auto| K[Submit to Google Forms during saved process call]
   J --> M[User edits stored answers]
   M --> N[Submit all reviewed iterations]
   K --> L[Save logs and show/export results]
@@ -195,8 +195,10 @@ flowchart LR
 | `POST` | `/api/parse/` | Parse Google Form URL into schema |
 | `POST` | `/api/generate/` | Generate personas and answers |
 | `POST` | `/api/submit/` | Submit a single answer payload |
-| `POST` | `/api/batch/jobs` | Start reload-safe background batch job |
+| `POST` | `/api/batch/jobs` | Create reload-safe saved batch session |
 | `GET` | `/api/batch/sessions/{session_id}` | Read stored batch progress/session results |
+| `POST` | `/api/batch/sessions/{session_id}/process` | Process one missing batch iteration |
+| `GET` | `/api/batch/cron/process` | Vercel Cron fallback to resume unfinished sessions |
 | `PATCH` | `/api/batch/sessions/{session_id}/iterations/{iteration}/answers` | Persist review answer edits |
 | `POST` | `/api/batch/sessions/{session_id}/submit-reviewed` | Submit all pending review iterations |
 | `POST` | `/api/batch/run` | Legacy batch parse → generate → submit |
@@ -235,6 +237,7 @@ npm run build
 
 ```text
 v2/
+├── api/                  # Vercel Python entrypoint
 ├── backend/
 │   ├── app/
 │   │   ├── core/          # parser, generator, submitter, quality checks
@@ -273,7 +276,7 @@ Before deploying:
 - Restrict CORS origins.
 - Configure provider API keys through platform secrets.
 - Do not log PII unless explicitly needed and protected.
-- Move from SQLite to a managed database if multiple instances/users are expected.
+- Use Google Sheets storage for Vercel-only deployment; move from SQLite to a managed database if multiple long-lived backend instances/users are expected.
 - Auth is built in with bearer tokens and an in-memory failed-login cooldown; use a shared persistent rate limiter if running multiple backend instances.
 - Add broader rate limiting and abuse protection around parse, generate, and submit endpoints.
 - Review Google Forms usage policy and only automate authorized forms.

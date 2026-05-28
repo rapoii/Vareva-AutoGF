@@ -1,12 +1,9 @@
 import json
 import logging
 import random
-import threading
-import time
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from sqlmodel import Session
 
 from app.core.auth import get_current_user
 from app.core.parser import analyze_form, parse_form_with_analysis
@@ -19,8 +16,9 @@ from app.core.storage.google_sheets import GoogleSheetsStorageError
 from app.core.storage.models import StoredUser
 from app.core.storage.service import AppStorage
 from app.core.submitter import submit
-from app.db import SessionDep, engine
-from app.schemas.batch import BatchReviewAnswerUpdate, BatchRunRequest, BatchRunResponse, BatchSessionStatus, GenerationConfig, IterationResult
+from app.config import get_settings
+from app.db import SessionDep
+from app.schemas.batch import BatchProcessRequest, BatchReviewAnswerUpdate, BatchRunRequest, BatchRunResponse, BatchSessionStatus, GenerationConfig, IterationResult
 from app.schemas.form import FormAnalysis, FormSchema
 
 logger = logging.getLogger(__name__)
@@ -145,131 +143,13 @@ def _resolve_form_schema(req: BatchRunRequest, storage: AppStorage, user: Stored
     return schema, analyze_form(schema), "saved"
 
 
-def _run_batch_job(session_id: str, req: BatchRunRequest, user_id: str) -> None:
-    with Session(engine) as db:
-        storage = AppStorage(db)
-        success_count = 0
-        fail_count = 0
-        try:
-            stored_schema = storage.load_form_schema(session_id, user_id=user_id)
-            if not stored_schema:
-                raise RuntimeError("Schema hasil scan tidak ditemukan")
-            schema_json = stored_schema.get("schema_json")
-            if not isinstance(schema_json, str) or not schema_json:
-                raise RuntimeError("Schema hasil scan kosong")
-
-            form_schema = FormSchema.model_validate_json(schema_json)
-            form_analysis = analyze_form(form_schema)
-            generation_config = _normalize_generation_config(req.generation_config)
-            answer_history = storage.load_answer_history(req.form_url, user_id=user_id)
-            used_persona_names = storage.load_used_persona_names(req.form_url, user_id=user_id)
-
-            persona_objects, persona_provider = generate_persona_objects_with_provider(
-                req.count,
-                analysis=form_analysis,
-                blocked_names=used_persona_names,
-                persona_description=generation_config.persona_description,
-                economic_class=generation_config.economic_class,
-            )
-            quality_issues = []
-            for persona in persona_objects:
-                result = validate_persona_quality(persona, form_analysis)
-                if not result.passed:
-                    quality_issues.append(f"{persona.name}: {', '.join(result.issues)}")
-            if quality_issues:
-                logger.warning("Persona quality warnings for session %s: %s", session_id, quality_issues[:5])
-            else:
-                logger.info("Persona quality check passed for session %s using %s", session_id, persona_provider)
-
-            fields_by_page = _fields_by_page(form_schema)
-            for i, persona in enumerate(persona_objects, start=1):
-                persona_text = persona.to_prompt_text()
-                try:
-                    gen_resp, ans_provider = generate_answers_with_provider(
-                        form_schema,
-                        persona_text,
-                        answer_history,
-                        answer_instructions=generation_config.answer_instructions,
-                        custom_answers=generation_config.custom_answers,
-                    )
-                    answer_history.append(gen_resp.answers)
-                except Exception as e:
-                    fail_count += 1
-                    logger.warning("Session %s iterasi %d: generate gagal: %s", session_id, i, e)
-                    storage.update_session_result(session_id, success_count, fail_count, status="running")
-                    continue
-
-                persona_summary = _persona_summary(persona, gen_resp.answers, form_schema)
-                submit_status = "pending_review"
-                http_code = 0
-                error_message = None
-                if not req.skip_submit:
-                    delay = random.uniform(2.0, 5.0) if i > 1 else 0.0
-                    try:
-                        sub = submit(
-                            req.form_url,
-                            gen_resp.answers,
-                            delay=delay,
-                            page_count=form_schema.page_count,
-                            fields_by_page=fields_by_page if form_schema.page_count > 1 else None,
-                        )
-                        submit_status = sub["status"]
-                        http_code = sub["http_code"]
-                        error_message = sub.get("error_message")
-                    except Exception as e:
-                        submit_status = "failed"
-                        error_message = f"Submit error: {e}"
-                        logger.warning("Session %s iterasi %d: submit gagal: %s", session_id, i, e)
-
-                if submit_status == "success" or req.skip_submit:
-                    if submit_status == "success":
-                        storage.append_generated_persona_log(session_id, req.form_url, persona, user_id=user_id)
-                    storage.append_submission_log(
-                        session_id=session_id,
-                        iteration=i,
-                        answers=gen_resp.answers,
-                        submit_status=submit_status,
-                        error_message=error_message,
-                        form_url=req.form_url,
-                        persona_text=persona_summary,
-                        http_code=http_code,
-                        tokens_used=gen_resp.tokens_used,
-                        retries=gen_resp.retries,
-                        provider=ans_provider,
-                        user_id=user_id,
-                    )
-                    if submit_status == "success":
-                        success_count += 1
-                else:
-                    fail_count += 1
-
-                storage.update_session_result(session_id, success_count, fail_count, status="running")
-
-            storage.update_session_result(session_id, success_count, fail_count, status="completed")
-        except Exception as e:
-            logger.exception("Batch job %s failed: %s", session_id, e)
-            storage.update_session_result(session_id, success_count, fail_count or req.count, status="failed")
-
-
-def _start_batch_thread(session_id: str, req: BatchRunRequest, user_id: str) -> None:
-    thread = threading.Thread(
-        target=_run_batch_job,
-        args=(session_id, req.model_copy(deep=True), user_id),
-        name=f"batch-job-{session_id}",
-        daemon=True,
-    )
-    thread.start()
-
-
-@router.get("/sessions/{session_id}", response_model=BatchSessionStatus)
-def get_batch_session(session_id: str, db: SessionDep, user: StoredUser = Depends(get_current_user)):
-    storage = AppStorage(db)
-    session = storage.load_session_detail(session_id, user_id=user.id)
+def _status_from_storage(storage: AppStorage, session_id: str, user_id: str) -> BatchSessionStatus:
+    session = storage.load_session_detail(session_id, user_id=user_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session generate tidak ditemukan")
 
     fields = []
-    stored_schema = storage.load_form_schema(session_id, user_id=user.id)
+    stored_schema = storage.load_form_schema(session_id, user_id=user_id)
     if stored_schema:
         schema_json = stored_schema.get("schema_json")
         if isinstance(schema_json, str) and schema_json:
@@ -278,7 +158,7 @@ def get_batch_session(session_id: str, db: SessionDep, user: StoredUser = Depend
             except ValueError:
                 fields = []
 
-    results = [_iteration_from_log(row) for row in storage.load_session_logs(session_id, user_id=user.id)]
+    results = [_iteration_from_log(row) for row in storage.load_session_logs(session_id, user_id=user_id)]
     success_count = sum(1 for result in results if result.submit_status == "success")
     fail_count = sum(1 for result in results if result.submit_status and result.submit_status not in {"success", "pending_review"})
     return BatchSessionStatus(
@@ -293,6 +173,182 @@ def get_batch_session(session_id: str, db: SessionDep, user: StoredUser = Depend
         fields=fields,
         results=results,
     )
+
+
+def _load_session_schema(storage: AppStorage, session_id: str, user_id: str) -> FormSchema:
+    stored_schema = storage.load_form_schema(session_id, user_id=user_id)
+    if not stored_schema:
+        raise HTTPException(status_code=404, detail="Schema form tidak ditemukan")
+    schema_json = stored_schema.get("schema_json")
+    if not isinstance(schema_json, str) or not schema_json:
+        raise HTTPException(status_code=422, detail="Schema form kosong")
+    return FormSchema.model_validate_json(schema_json)
+
+
+def _load_session_generation_config(storage: AppStorage, session_id: str, user_id: str) -> GenerationConfig:
+    stored_config = storage.load_generation_config(session_id, user_id=user_id)
+    if not stored_config:
+        return GenerationConfig()
+    config_json = stored_config.get("config_json")
+    if not isinstance(config_json, str) or not config_json:
+        return GenerationConfig()
+    return _normalize_generation_config(GenerationConfig.model_validate_json(config_json))
+
+
+def _next_missing_iteration(results: list[IterationResult], count: int) -> int | None:
+    existing = {result.iteration for result in results if result.iteration > 0}
+    for iteration in range(1, count + 1):
+        if iteration not in existing:
+            return iteration
+    return None
+
+
+def _process_one_iteration(storage: AppStorage, session_id: str, user_id: str) -> BatchSessionStatus:
+    session = storage.load_session_detail(session_id, user_id=user_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session generate tidak ditemukan")
+
+    count = int(session.get("count") or session.get("batch_count") or 0)
+    form_url = str(session.get("form_url") or "")
+    mode = str(session.get("mode") or "auto")
+    form_schema = _load_session_schema(storage, session_id, user_id)
+    form_analysis = analyze_form(form_schema)
+    generation_config = _load_session_generation_config(storage, session_id, user_id)
+    current_status = _status_from_storage(storage, session_id, user_id)
+    next_iteration = _next_missing_iteration(current_status.results, count)
+    if next_iteration is None:
+        storage.update_session_result(session_id, current_status.success_count, current_status.fail_count, status="completed")
+        return _status_from_storage(storage, session_id, user_id)
+
+    answer_history = storage.load_answer_history(form_url, user_id=user_id)
+    answer_history.extend(result.answers for result in current_status.results if result.answers)
+    used_persona_names = storage.load_used_persona_names(form_url, user_id=user_id)
+    persona_objects, persona_provider = generate_persona_objects_with_provider(
+        1,
+        analysis=form_analysis,
+        blocked_names=used_persona_names,
+        persona_description=generation_config.persona_description,
+        economic_class=generation_config.economic_class,
+    )
+    persona = persona_objects[0]
+    quality = validate_persona_quality(persona, form_analysis)
+    if not quality.passed:
+        logger.warning("Persona quality warnings for session %s iteration %d: %s", session_id, next_iteration, quality.issues)
+    else:
+        logger.info("Persona quality check passed for session %s iteration %d using %s", session_id, next_iteration, persona_provider)
+
+    submit_status = "failed"
+    http_code = 0
+    error_message = None
+    tokens_used = 0
+    retries = 0
+    ans_provider = ""
+    answers: dict[str, str | list[str]] = {}
+    persona_summary = _persona_summary(persona)
+    try:
+        gen_resp, ans_provider = generate_answers_with_provider(
+            form_schema,
+            persona.to_prompt_text(),
+            answer_history,
+            answer_instructions=generation_config.answer_instructions,
+            custom_answers=generation_config.custom_answers,
+        )
+        answers = gen_resp.answers
+        tokens_used = gen_resp.tokens_used
+        retries = gen_resp.retries
+        persona_summary = _persona_summary(persona, answers, form_schema)
+        if mode == "review":
+            submit_status = "pending_review"
+        else:
+            fields_by_page = _fields_by_page(form_schema)
+            sub = submit(
+                form_url,
+                answers,
+                delay=0.0,
+                page_count=form_schema.page_count,
+                fields_by_page=fields_by_page if form_schema.page_count > 1 else None,
+            )
+            submit_status = str(sub["status"])
+            http_code = int(sub["http_code"])
+            error_message = sub.get("error_message")
+    except Exception as e:
+        error_message = f"Generate error: {e}"
+        if answers:
+            error_message = f"Submit error: {e}"
+        logger.warning("Session %s iterasi %d gagal: %s", session_id, next_iteration, e)
+
+    if submit_status == "success":
+        storage.append_generated_persona_log(session_id, form_url, persona, user_id=user_id)
+    storage.append_submission_log(
+        session_id=session_id,
+        iteration=next_iteration,
+        answers=answers,
+        submit_status=submit_status,
+        error_message=error_message,
+        form_url=form_url,
+        persona_text=persona_summary,
+        http_code=http_code,
+        tokens_used=tokens_used,
+        retries=retries,
+        provider=ans_provider,
+        user_id=user_id,
+    )
+
+    next_status = _status_from_storage(storage, session_id, user_id)
+    final_status = "completed" if len(next_status.results) >= count else "running"
+    storage.update_session_result(session_id, next_status.success_count, next_status.fail_count, status=final_status)
+    return _status_from_storage(storage, session_id, user_id)
+
+
+@router.get("/sessions/{session_id}", response_model=BatchSessionStatus)
+def get_batch_session(session_id: str, db: SessionDep, user: StoredUser = Depends(get_current_user)):
+    return _status_from_storage(AppStorage(db), session_id, user.id)
+
+
+@router.post("/sessions/{session_id}/process", response_model=BatchSessionStatus)
+def process_batch_session(session_id: str, req: BatchProcessRequest, db: SessionDep, user: StoredUser = Depends(get_current_user)):
+    storage = AppStorage(db)
+    try:
+        status = _status_from_storage(storage, session_id, user.id)
+        for _ in range(req.max_iterations):
+            if status.status in {"completed", "failed"}:
+                break
+            status = _process_one_iteration(storage, session_id, user.id)
+        return status
+    except GoogleSheetsStorageError as e:
+        raise HTTPException(status_code=503, detail=f"Storage Google Sheets sedang sibuk atau timeout: {e}") from e
+
+
+@router.get("/cron/process")
+def process_running_sessions_cron(db: SessionDep, authorization: str | None = Header(default=None)):
+    settings = get_settings()
+    expected = f"Bearer {settings.auth_secret_key}"
+    if authorization != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    storage = AppStorage(db)
+    processed: list[dict[str, object]] = []
+    try:
+        for session in storage.load_running_sessions(limit=3):
+            session_id = str(session.get("session_id") or session.get("id") or "")
+            user_id = str(session.get("user_id") or "")
+            if not session_id or not user_id:
+                continue
+            status = _status_from_storage(storage, session_id, user_id)
+            if status.status not in {"queued", "running"} or len(status.results) >= status.count:
+                continue
+            next_status = _process_one_iteration(storage, session_id, user_id)
+            processed.append({
+                "session_id": session_id,
+                "user_id": user_id,
+                "status": next_status.status,
+                "results": len(next_status.results),
+                "count": next_status.count,
+            })
+        return {"ok": True, "processed": processed}
+    except GoogleSheetsStorageError as e:
+        raise HTTPException(status_code=503, detail=f"Storage Google Sheets sedang sibuk atau timeout: {e}") from e
+
 
 
 def _get_review_iteration(storage: AppStorage, session_id: str, iteration: int, user_id: str) -> tuple[dict[str, object], IterationResult]:
@@ -414,9 +470,13 @@ def start_batch_job(req: BatchRunRequest, db: SessionDep, user: StoredUser = Dep
             mode="review" if req.skip_submit else "auto",
         )
         storage.save_form_schema(stored_session.id, req.form_url, form_schema.model_dump_json(), user_id=user.id)
+        storage.save_generation_config(
+            stored_session.id,
+            _normalize_generation_config(req.generation_config).model_dump_json(),
+            user_id=user.id,
+        )
     except GoogleSheetsStorageError as e:
         raise HTTPException(status_code=503, detail=f"Storage Google Sheets sedang sibuk atau timeout: {e}") from e
-    _start_batch_thread(stored_session.id, req, user.id)
 
     return BatchSessionStatus(
         session_id=stored_session.id,
@@ -620,7 +680,11 @@ def batch_run_stream(req: BatchRunRequest, db: SessionDep, user: StoredUser = De
             mode="review" if req.skip_submit else "auto",
         )
         storage.save_form_schema(stored_session.id, req.form_url, form_schema.model_dump_json(), user_id=user.id)
-        _start_batch_thread(stored_session.id, req, user.id)
+        storage.save_generation_config(
+            stored_session.id,
+            _normalize_generation_config(req.generation_config).model_dump_json(),
+            user_id=user.id,
+        )
 
         yield _sse("session_started", {
             "session_id": stored_session.id,
@@ -630,37 +694,30 @@ def batch_run_stream(req: BatchRunRequest, db: SessionDep, user: StoredUser = De
             "mode": "review" if req.skip_submit else "auto",
             "status": "running",
         })
-        yield _sse("log", {"phase": "generate", "message": "Background job berjalan di backend; stream ini hanya memantau progress."})
+        yield _sse("log", {"phase": "generate", "message": "Processing saved session one request at a time."})
 
         emitted_logs: set[str] = set()
         while True:
-            session = storage.load_session_detail(stored_session.id, user_id=user.id)
-            logs = storage.load_session_logs(stored_session.id, user_id=user.id)
-            results = [_iteration_from_log(row) for row in logs]
-            for result in results:
+            status = _process_one_iteration(storage, stored_session.id, user.id)
+            for result in status.results:
                 key = result.log_id or f"{result.iteration}:{result.submit_status}"
                 if key in emitted_logs:
                     continue
                 emitted_logs.add(key)
                 yield _sse("iteration_result", result.model_dump())
 
-            status = str((session or {}).get("status") or "running")
-            if status in {"completed", "failed"}:
-                success_count = sum(1 for result in results if result.submit_status == "success")
-                fail_count = sum(1 for result in results if result.submit_status and result.submit_status not in {"success", "pending_review"})
+            if status.status in {"completed", "failed"}:
                 complete_data = {
                     "form_title": form_schema.title,
                     "session_id": stored_session.id,
                     "count": req.count,
-                    "results": [result.model_dump() for result in results],
-                    "success_count": success_count,
-                    "fail_count": fail_count,
+                    "results": [result.model_dump() for result in status.results],
+                    "success_count": status.success_count,
+                    "fail_count": status.fail_count,
                 }
-                if status == "failed":
-                    yield _sse("error", {"message": "Background job gagal. Cek log backend untuk detail."})
+                if status.status == "failed":
+                    yield _sse("error", {"message": "Batch processing gagal. Cek log backend untuk detail."})
                 yield _sse("complete", complete_data)
                 return
-
-            time.sleep(2.0)
 
     return _streaming_response(event_stream())

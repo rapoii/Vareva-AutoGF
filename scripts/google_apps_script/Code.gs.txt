@@ -4,6 +4,7 @@ const SHEETS = {
   users: ['id', 'created_at', 'name', 'email', 'password_hash', 'last_login_at'],
   sessions: ['id', 'created_at', 'user_id', 'form_url', 'form_title', 'count', 'success_count', 'fail_count', 'mode', 'status'],
   form_schemas: ['id', 'session_id', 'user_id', 'form_url', 'schema_json', 'created_at'],
+  generation_configs: ['id', 'session_id', 'user_id', 'config_json', 'created_at'],
   submission_logs: ['id', 'session_id', 'user_id', 'form_url', 'iteration', 'persona_text', 'answers_json', 'submit_status', 'http_code', 'tokens_used', 'retries', 'provider', 'error_message', 'created_at'],
   generated_persona_logs: ['id', 'session_id', 'user_id', 'form_url', 'name', 'gender', 'age', 'occupation', 'economic_class', 'persona_json', 'created_at'],
 };
@@ -27,8 +28,11 @@ function doPost(e) {
     if (action === 'create_session') return withLock(() => jsonResponse({ ok: true, data: { session: createSession(payload) } }));
     if (action === 'get_session_detail') return jsonResponse({ ok: true, data: { session: getSessionDetail(payload) } });
     if (action === 'get_session_logs') return jsonResponse({ ok: true, data: { logs: getSessionLogs(payload) } });
+    if (action === 'get_running_sessions') return jsonResponse({ ok: true, data: { sessions: getRunningSessions(payload) } });
     if (action === 'save_form_schema') return withLock(() => jsonResponse({ ok: true, data: appendObject('form_schemas', payload) }));
     if (action === 'get_form_schema') return jsonResponse({ ok: true, data: { schema: getFormSchema(payload) } });
+    if (action === 'save_generation_config') return withLock(() => jsonResponse({ ok: true, data: appendObject('generation_configs', payload) }));
+    if (action === 'get_generation_config') return jsonResponse({ ok: true, data: { config: getGenerationConfig(payload) } });
     if (action === 'append_submission_log') return withLock(() => jsonResponse({ ok: true, data: appendObject('submission_logs', payload) }));
     if (action === 'update_submission_answers') return withLock(() => jsonResponse({ ok: true, data: updateSubmissionAnswers(payload) }));
     if (action === 'update_submission_result') return withLock(() => jsonResponse({ ok: true, data: updateSubmissionResult(payload) }));
@@ -133,9 +137,14 @@ function findRowById(sheetName, id) {
   return 0;
 }
 
+function getHeaders(sheetName) {
+  const sheet = getSheet(sheetName);
+  return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+}
+
 function setCellByHeader(sheetName, row, header, value) {
   const sheet = getSheet(sheetName);
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const headers = getHeaders(sheetName);
   const col = headers.indexOf(header) + 1;
   if (col <= 0) throw new Error(`Header ${header} tidak ditemukan di ${sheetName}`);
   sheet.getRange(row, col).setValue(value);
@@ -244,6 +253,18 @@ function getFormSchema(payload) {
   }) || null;
 }
 
+function getGenerationConfig(payload) {
+  const sessionId = String(payload.session_id || '');
+  const userId = String(payload.user_id || '');
+  if (!sessionId) return null;
+  const matches = readObjects('generation_configs').filter((row) => {
+    const matchesSession = String(row.session_id || '') === sessionId;
+    const matchesUser = !userId || String(row.user_id || '') === userId;
+    return matchesSession && matchesUser;
+  });
+  return matches.length ? matches[matches.length - 1] : null;
+}
+
 function getSessionDetail(payload) {
   const sessionId = String(payload.session_id || '');
   const userId = String(payload.user_id || '');
@@ -270,6 +291,18 @@ function getSessionLogs(payload) {
       return matchesSession && matchesUser;
     })
     .sort((a, b) => Number(a.iteration || 0) - Number(b.iteration || 0));
+}
+
+function getRunningSessions(payload) {
+  const limit = Math.max(1, Number(payload.limit || 5));
+  return readObjects('sessions')
+    .filter((row) => ['queued', 'running'].includes(String(row.status || 'running')))
+    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
+    .slice(0, limit)
+    .map((row) => {
+      row.session_id = String(row.id || '');
+      return row;
+    });
 }
 
 function updateSubmissionAnswers(payload) {
@@ -414,6 +447,7 @@ function deleteFormHistory(payload) {
   return {
     deleted_sessions: deleteRowsByUserAndForm('sessions', userId, formUrl),
     deleted_form_schemas: deleteRowsByUserAndFormOrSession('form_schemas', userId, formUrl, sessionIds),
+    deleted_generation_configs: deleteRowsByUserAndSession('generation_configs', userId, sessionIds),
     deleted_submission_logs: deleteRowsByUserAndFormOrSession('submission_logs', userId, formUrl, sessionIds),
     deleted_generated_persona_logs: deleteRowsByUserAndFormOrSession('generated_persona_logs', userId, formUrl, sessionIds),
   };
@@ -421,6 +455,27 @@ function deleteFormHistory(payload) {
 
 function deleteRowsByUserAndForm(sheetName, userId, formUrl) {
   return deleteRowsByUserAndFormOrSession(sheetName, userId, formUrl, []);
+}
+
+function deleteRowsByUserAndSession(sheetName, userId, sessionIds) {
+  const sheet = getSheet(sheetName);
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return 0;
+  const headers = values[0].map(String);
+  const userCol = headers.indexOf('user_id');
+  const sessionCol = headers.indexOf('session_id');
+  const sessionSet = new Set((sessionIds || []).map(String));
+  let deleted = 0;
+  for (let r = values.length; r >= 2; r--) {
+    const row = values[r - 1];
+    const matchesUser = userCol >= 0 && String(row[userCol] || '') === userId;
+    const matchesSession = sessionCol >= 0 && sessionSet.has(String(row[sessionCol] || ''));
+    if (matchesUser && matchesSession) {
+      sheet.deleteRow(r);
+      deleted += 1;
+    }
+  }
+  return deleted;
 }
 
 function deleteRowsByUserAndFormOrSession(sheetName, userId, formUrl, sessionIds) {

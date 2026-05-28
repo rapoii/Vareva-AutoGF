@@ -5,11 +5,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import text
-from sqlmodel import Session, col, select
+from sqlmodel import SQLModel, Session, col, select
 
 from app.config import get_settings
 from app.core.storage.google_sheets import GoogleSheetsClient
 from app.core.storage.models import StoredLog, StoredSession, StoredUser
+from app.models.batch_generation_config import BatchGenerationConfigRecord
 from app.models.form_schema import FormSchemaRecord
 from app.models.generated_persona_log import GeneratedPersonaLog
 from app.models.session import FormSession
@@ -191,6 +192,45 @@ class AppStorage:
             "schema_json": record.schema_data,
         }
 
+    def save_generation_config(self, session_id: str, config_json: str, user_id: str | None = None) -> StoredLog:
+        if self.use_google_sheets:
+            data = self.sheets.call_action("save_generation_config", {  # type: ignore[union-attr]
+                "session_id": session_id,
+                "user_id": user_id,
+                "config_json": config_json,
+                "created_at": _now_iso(),
+            })
+            return StoredLog(id=_to_storage_id(data.get("id")))
+
+        if self.db is None:
+            raise RuntimeError("SQLite generation config storage membutuhkan database session")
+        SQLModel.metadata.create_all(self.db.get_bind(), tables=[BatchGenerationConfigRecord.__table__])
+        record = BatchGenerationConfigRecord(session_id=_to_sqlite_id(session_id), config_json=config_json)
+        self.db.add(record)
+        self.db.commit()
+        self.db.refresh(record)
+        return StoredLog(id=str(record.id or 0))
+
+    def load_generation_config(self, session_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+        if self.use_google_sheets:
+            data = self.sheets.call_action("get_generation_config", {"session_id": session_id, "user_id": user_id})  # type: ignore[union-attr]
+            config = data.get("config")
+            return config if isinstance(config, dict) else None
+
+        if self.db is None:
+            return None
+        SQLModel.metadata.create_all(self.db.get_bind(), tables=[BatchGenerationConfigRecord.__table__])
+        record = self.db.exec(
+            select(BatchGenerationConfigRecord).where(BatchGenerationConfigRecord.session_id == _to_sqlite_id(session_id))
+        ).first()
+        if not record:
+            return None
+        return {
+            "session_id": session_id,
+            "user_id": user_id or "",
+            "config_json": record.config_json,
+        }
+
     def load_answer_history(self, form_url: str, limit: int = 12, user_id: str | None = None) -> list[dict[str, Any]]:
         if self.use_google_sheets:
             data = self.sheets.call_action("get_answer_history", {"form_url": form_url, "limit": limit, "user_id": user_id})  # type: ignore[union-attr]
@@ -319,6 +359,35 @@ class AppStorage:
             "mode": "auto",
             "status": db_session.status,
         }
+
+    def load_running_sessions(self, limit: int = 5) -> list[dict[str, Any]]:
+        if self.use_google_sheets:
+            data = self.sheets.call_action("get_running_sessions", {"limit": limit})  # type: ignore[union-attr]
+            sessions = data.get("sessions") or []
+            return [session for session in sessions if isinstance(session, dict)]
+
+        if self.db is None:
+            return []
+        rows = self.db.exec(
+            select(FormSession)
+            .where(col(FormSession.status).in_(["queued", "running"]))
+            .order_by(FormSession.created_at)
+            .limit(limit)
+        ).all()
+        return [
+            {
+                "session_id": str(row.id or ""),
+                "user_id": "",
+                "form_url": row.form_url,
+                "form_title": "",
+                "count": row.batch_count,
+                "success_count": row.success_count,
+                "fail_count": row.fail_count,
+                "mode": "auto",
+                "status": row.status,
+            }
+            for row in rows
+        ]
 
     def load_session_logs(self, session_id: str, user_id: str | None = None) -> list[dict[str, Any]]:
         if self.use_google_sheets:

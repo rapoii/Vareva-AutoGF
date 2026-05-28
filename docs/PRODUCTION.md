@@ -15,9 +15,15 @@ This guide lists the main changes to review before running Vareva AutoGF outside
 
 ## Recommended Runtime Setup
 
-### Backend
+### Vercel-only free deployment
 
-Run FastAPI behind a production ASGI server and reverse proxy.
+Use `vercel.json` and `api/app.py` to deploy the Vite frontend and FastAPI backend together on Vercel. Configure `STORAGE_BACKEND=google_sheets` because Vercel functions cannot rely on local SQLite persistence.
+
+Batch processing is split into short `/api/batch/sessions/{session_id}/process` calls. Each call processes at most one missing iteration and persists progress before returning. A daily Vercel Cron fallback calls `/api/batch/cron/process` to resume unfinished sessions when the browser is no longer active.
+
+### Separate backend deployment
+
+For a traditional backend host, run FastAPI behind a production ASGI server and reverse proxy.
 
 ```powershell
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -39,7 +45,7 @@ Build static assets from `frontend/`:
 npm run build
 ```
 
-Serve the generated `dist/` directory through a static host or reverse proxy. Configure the frontend API base URL according to the deployed backend origin.
+On Vercel, the frontend uses same-origin `/api` by default. For a separately hosted backend, configure the frontend API base URL according to the deployed backend origin.
 
 ## Environment Variables
 
@@ -84,7 +90,7 @@ Before switching databases, verify SQLModel compatibility and run a migration/ba
 - Keep `LLM_MAX_RETRIES` modest because retries spend tokens.
 - Use local similarity warnings and compact answer history rather than AI retries for duplicate answers.
 - Persist per-form name and answer history in the database used by production.
-- In-process background jobs survive browser reloads but not backend restarts. Use a durable queue if jobs must survive deploys/restarts or multiple backend workers.
+- Batch processing is reload-safe because each iteration is persisted, but Vercel-only processing requires the browser to stay open or revisit the progress URL. Use a durable queue if jobs must continue after the tab closes.
 
 ## Observability
 
