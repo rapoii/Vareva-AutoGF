@@ -28,7 +28,7 @@ id | created_at | name | email | password_hash | last_login_at
 ### sessions
 
 ```text
-id | created_at | user_id | form_url | form_title | count | success_count | fail_count | mode
+id | created_at | user_id | form_url | form_title | count | success_count | fail_count | mode | status
 ```
 
 ### form_schemas

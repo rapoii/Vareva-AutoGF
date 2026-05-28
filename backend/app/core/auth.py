@@ -45,15 +45,17 @@ def _check_login_cooldown(email: str) -> None:
             )
 
 
-def _record_failed_login(email: str) -> None:
+def _record_failed_login(email: str) -> int:
     now = datetime.now(timezone.utc).timestamp()
     with _login_attempt_lock:
         state = _login_attempts.get(email) or {"failures": 0, "locked_until": 0}
         failures = int(state.get("failures") or 0) + 1
+        cooldown_seconds = _login_cooldown_seconds(failures)
         _login_attempts[email] = {
             "failures": failures,
-            "locked_until": now + _login_cooldown_seconds(failures),
+            "locked_until": now + cooldown_seconds,
         }
+        return cooldown_seconds
 
 
 def _reset_failed_login(email: str) -> None:
@@ -112,7 +114,11 @@ def authenticate_user(storage: AppStorage, email: str, password: str) -> StoredU
     _check_login_cooldown(normalized_email)
     user = storage.get_user_by_email(normalized_email)
     if user is None or not verify_password(password, user.password_hash):
-        _record_failed_login(normalized_email)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email atau password salah. Coba lagi dalam 5 detik.")
+        cooldown_seconds = _record_failed_login(normalized_email)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Email atau password salah. Coba lagi dalam {cooldown_seconds} detik.",
+            headers={"Retry-After": str(cooldown_seconds)},
+        )
     _reset_failed_login(normalized_email)
     return user

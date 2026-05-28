@@ -53,7 +53,7 @@ Request:
 }
 ```
 
-Response includes generated persona/answer data. For batch usage, prefer `/api/batch/run-stream`.
+Response includes generated persona/answer data. For batch usage, prefer `/api/batch/jobs` and poll `/api/batch/sessions/{session_id}`.
 
 ## Submit Form
 
@@ -74,10 +74,10 @@ The submitter supports:
 - Multi-page form tokens
 - `Yang lain:` / Other option payloads
 
-## Batch Run
+## Batch Background Job
 
 ```http
-POST /api/batch/run
+POST /api/batch/jobs
 Content-Type: application/json
 ```
 
@@ -87,35 +87,65 @@ Request:
 {
   "form_url": "https://docs.google.com/forms/d/e/.../viewform",
   "count": 3,
-  "skip_submit": false
+  "skip_submit": false,
+  "session_id": "ses_from_scan_optional",
+  "generation_config": {
+    "persona_description": "Mahasiswa aktif di kota besar",
+    "economic_class": "middle",
+    "answer_instructions": "Jawaban santai dan realistis",
+    "custom_answers": {}
+  }
 }
 ```
 
-Use `skip_submit: true` for review mode.
+`skip_submit: false` runs auto mode. `skip_submit: true` stores generated answers as `pending_review` for user review.
 
-Response:
+Response is a `BatchSessionStatus` snapshot with `session_id`, `fields`, `results`, counts, mode, and status. The frontend should navigate to `/generate/{session_id}` and poll the session endpoint.
+
+## Batch Session Status
+
+```http
+GET /api/batch/sessions/{session_id}
+```
+
+Returns stored progress for reload-safe progress pages. `pending_review` results are not counted as failures.
+
+## Update Review Answers
+
+```http
+PATCH /api/batch/sessions/{session_id}/iterations/{iteration}/answers
+Content-Type: application/json
+```
+
+Request:
 
 ```json
 {
-  "session_id": 1,
-  "form_title": "Survey Example",
-  "count": 3,
-  "success_count": 3,
-  "fail_count": 0,
-  "results": [
-    {
-      "iteration": 1,
-      "persona_text": "Rizky Pratama, 24 thn, Karyawan swasta (Jakarta)",
-      "answers": {},
-      "tokens_used": 1234,
-      "submit_status": "success",
-      "http_code": 200,
-      "log_id": 10,
-      "error_message": null
-    }
-  ]
+  "answers": {
+    "entry.123": "Updated answer",
+    "entry.456": ["Option A", "Option B"]
+  }
 }
 ```
+
+Only available for review sessions while the iteration is still `pending_review`.
+
+## Submit Reviewed Session
+
+```http
+POST /api/batch/sessions/{session_id}/submit-reviewed
+```
+
+Submits all pending review iterations together and returns the updated `BatchSessionStatus`.
+
+## Legacy Batch Run
+
+```http
+POST /api/batch/run
+Content-Type: application/json
+```
+
+Kept for compatibility. New frontend flows should prefer `/api/batch/jobs`.
 
 ## Batch Run Stream
 

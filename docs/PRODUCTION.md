@@ -6,8 +6,9 @@ This guide lists the main changes to review before running Vareva AutoGF outside
 
 - Configure provider API keys through platform secrets, not committed files.
 - Restrict CORS origins to trusted frontend domains.
-- Add authentication if the app is exposed beyond personal or internal use.
-- Add rate limiting and abuse protection around parse, generate, and submit endpoints.
+- Keep authentication enabled and use a strong `AUTH_SECRET_KEY` from platform secrets.
+- The built-in failed-login cooldown is in-memory per backend process; use a shared persistent rate limiter for multi-instance deployments.
+- Add broader rate limiting and abuse protection around parse, generate, and submit endpoints.
 - Move from local SQLite to a managed relational database for multi-user or multi-instance deployments.
 - Review logging so generated names, answers, form URLs, and submission payloads are not exposed publicly.
 - Confirm Google Forms automation is only used for forms you own, administer, or are authorized to test.
@@ -83,6 +84,7 @@ Before switching databases, verify SQLModel compatibility and run a migration/ba
 - Keep `LLM_MAX_RETRIES` modest because retries spend tokens.
 - Use local similarity warnings and compact answer history rather than AI retries for duplicate answers.
 - Persist per-form name and answer history in the database used by production.
+- In-process background jobs survive browser reloads but not backend restarts. Use a durable queue if jobs must survive deploys/restarts or multiple backend workers.
 
 ## Observability
 
