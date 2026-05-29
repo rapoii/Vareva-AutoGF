@@ -149,6 +149,26 @@ export function subscribeApiLoading(listener: (detail: ApiLoadingEventDetail) =>
   return () => window.removeEventListener(API_LOADING_EVENT, handler)
 }
 
+function translateApiError(message: string) {
+  const normalized = message.toLowerCase()
+  if (normalized.includes("email") && normalized.includes("valid")) return "Alamat email tidak valid. Pastikan email memakai format nama@domain.com."
+  if (normalized.includes("field required")) return "Ada data wajib yang belum diisi."
+  if (normalized.includes("string should have at least")) return "Input terlalu pendek. Periksa lagi data yang kamu isi."
+  if (normalized.includes("string should have at most")) return "Input terlalu panjang. Periksa lagi data yang kamu isi."
+  return message
+}
+
+function formatErrorDetail(detail: unknown) {
+  if (typeof detail === "string") return translateApiError(detail)
+  if (Array.isArray(detail)) {
+    const first = detail[0]
+    if (first && typeof first === "object" && "msg" in first && typeof first.msg === "string") {
+      return translateApiError(first.msg)
+    }
+  }
+  return "Permintaan gagal"
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken()
   const showLoading = shouldShowApiLoading(path)
@@ -168,8 +188,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 
     const data = await response.json().catch(() => null)
     if (!response.ok) {
-      const detail = typeof data?.detail === "string" ? data.detail : "Request failed"
-      throw new Error(detail)
+      throw new Error(formatErrorDetail(data?.detail))
     }
 
     return data as T

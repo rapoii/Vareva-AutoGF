@@ -21,7 +21,7 @@ This opens backend and frontend in separate PowerShell windows:
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
 
-The frontend uses strict port `5173`. If the port is already occupied, stop the old frontend process instead of letting Vite switch to another port.
+The frontend uses strict port `5173`. If the port is already occupied, stop the old frontend process instead of letting Vite switch to another port. The backend watcher restarts on Python, `.env`, TOML, and JSON changes; restart the script itself only when changing the runner command or installed dependencies.
 
 ## Manual Development
 

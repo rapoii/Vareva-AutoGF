@@ -339,7 +339,7 @@ function App() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative flex min-h-screen flex-col overflow-x-hidden">
       <FloatingPixels />
 
       {/* ============================================================
@@ -468,7 +468,7 @@ function App() {
        * Desktop: padded canvas with floating decorations.
        * ============================================================ */}
       <main
-        className="relative brutal-center pt-4 md:pt-8 pb-32 md:pb-16 max-[340px]:px-4"
+        className="relative brutal-center flex-1 pt-4 md:pt-8 pb-32 md:pb-16 max-[340px]:px-4"
         style={{ animation: "var(--animate-fade-in)" }}
       >
         {!authReady && getGenerateSessionIdFromPath() && loadCachedProgressStatus(getGenerateSessionIdFromPath()) && (
@@ -484,7 +484,22 @@ function App() {
           <div className="min-h-[42vh]" />
         )}
 
-        {!authReady && !getGenerateSessionIdFromPath() && (
+        {!authReady && !getGenerateSessionIdFromPath() && getAuthToken() && (
+          <BatchSetupStep
+            url={setupUrl}
+            onUrlChange={setSetupUrl}
+            onScan={handleScan}
+            onClearScan={handleClearScan}
+            onStart={handleStart}
+            onOpenConfig={handleOpenScanConfig}
+            loading={false}
+            scanLoading={scanLoading}
+            error={error}
+            scannedForm={scannedForm}
+          />
+        )}
+
+        {!authReady && !getGenerateSessionIdFromPath() && !getAuthToken() && (
           <div className="min-h-[42vh]" />
         )}
 

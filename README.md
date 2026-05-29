@@ -154,6 +154,8 @@ This opens:
 - Frontend: `http://127.0.0.1:5173`
 - API docs: `http://127.0.0.1:8000/docs`
 
+The backend dev server reloads on Python, `.env`, TOML, and JSON changes. The frontend runs with Vite hot reload on a fixed local port.
+
 Manual mode:
 
 ```powershell

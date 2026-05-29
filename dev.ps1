@@ -8,7 +8,17 @@ if (-not (Test-Path (Join-Path $backend ".venv\Scripts\python.exe"))) {
   throw "Backend virtual environment not found at backend\.venv"
 }
 
-$backendCmd = "Set-Location '$backend'; .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
+$backendReloadArgs = @(
+  "--reload",
+  "--reload-dir", "'$backend'",
+  "--reload-include", "*.py",
+  "--reload-include", ".env",
+  "--reload-include", ".env.*",
+  "--reload-include", "*.toml",
+  "--reload-include", "*.json"
+) -join " "
+
+$backendCmd = "Set-Location '$backend'; .\.venv\Scripts\python.exe -m uvicorn app.main:app $backendReloadArgs --host 127.0.0.1 --port 8000"
 $frontendCmd = "Set-Location '$frontend'; npm run dev -- --host 127.0.0.1 --port 5173 --strictPort"
 
 $backendProcess = Start-Process pwsh -ArgumentList "-NoExit", "-Command", $backendCmd -PassThru

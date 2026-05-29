@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { PixelBolt, PixelSparkle, PixelStar } from "@/components/PixelDecor"
+import { PixelSparkle, PixelStar } from "@/components/PixelDecor"
 import type { FormSchema } from "@/lib/api"
 
 type ScannedForm = {
@@ -280,9 +280,8 @@ export function BatchSetupStep({ url, onUrlChange, onScan, onClearScan, onStart,
             size="xl"
             variant={reviewMode ? "secondary" : "default"}
           >
-            <PixelBolt size={28} />
+            <PixelSparkle size={24} />
             <span>{cta}</span>
-            <PixelSparkle size={20} />
           </Button>
         </div>
       </div>
@@ -350,7 +349,7 @@ export function BatchSetupStep({ url, onUrlChange, onScan, onClearScan, onStart,
           size="lg"
           variant={reviewMode ? "secondary" : "default"}
         >
-          <PixelBolt size={24} />
+          <PixelSparkle size={20} />
           {cta}
         </Button>
       </div>

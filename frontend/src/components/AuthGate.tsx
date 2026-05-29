@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { PixelRobot, PixelSparkle } from "@/components/PixelDecor"
 import { LoadingOverlay } from "@/components/LoadingOverlay"
 
 interface AuthGateProps {
@@ -79,14 +78,6 @@ export function AuthGate({ onAuthenticated }: AuthGateProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="border-brutal bg-(--color-bg-alt) shadow-brutal-sm p-4 flex items-center gap-3">
-            <PixelRobot className="w-10 h-10 shrink-0" />
-            <div>
-              <div className="font-display text-[10px] mb-1">VAREVA ACCOUNT</div>
-              <div className="font-mono text-xs text-current">Data user disimpan via Google Sheets storage.</div>
-            </div>
-          </div>
-
           {isRegister && (
             <div className="space-y-2">
               <Label htmlFor="auth-name">/* nama */</Label>
@@ -105,15 +96,14 @@ export function AuthGate({ onAuthenticated }: AuthGateProps) {
           </div>
 
           {error && (
-            <div className="border-brutal bg-(--color-destructive) text-(--color-destructive-foreground) bg-stripe-warn p-3 font-mono text-xs font-bold">
+            <div className="border-brutal bg-(--color-destructive) text-(--color-destructive-foreground) shadow-[2px_2px_0_0_var(--color-ink)] p-3 text-center font-mono text-xs font-bold" style={{ borderColor: "var(--color-ink)" }}>
               {error}
             </div>
           )}
 
-          <Button onClick={handleSubmit} disabled={loading || cooldownSeconds > 0 || !email.trim() || !password.trim() || (isRegister && !name.trim())} className="w-full" size="lg">
+          <Button onClick={handleSubmit} disabled={loading || cooldownSeconds > 0 || !email.trim() || !password.trim() || (isRegister && !name.trim())} className="w-full !shadow-[2px_2px_0_0_currentColor] hover:!shadow-[2px_2px_0_0_currentColor] disabled:!shadow-[2px_2px_0_0_currentColor]" size="lg">
             {isRegister ? <UserPlus className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
             {!isRegister && cooldownSeconds > 0 ? `COOLDOWN ${cooldownSeconds}s` : isRegister ? "REGISTER" : "LOGIN"}
-            <PixelSparkle size={18} />
           </Button>
 
           <button

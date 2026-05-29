@@ -23,6 +23,8 @@ export function ProfileStep({ user, onUserUpdated, onBack }: ProfileStepProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const hasProfileChanges = name.trim() !== user.name || email.trim() !== user.email
+
   const overlayMessage = savingProfile
     ? { title: "SIMPAN PROFILE", message: "Menyimpan perubahan nama dan email." }
     : savingPassword
@@ -30,6 +32,7 @@ export function ProfileStep({ user, onUserUpdated, onBack }: ProfileStepProps) {
       : null
 
   async function handleSaveProfile() {
+    if (!hasProfileChanges) return
     setSavingProfile(true)
     setError(null)
     setMessage(null)
@@ -101,7 +104,7 @@ export function ProfileStep({ user, onUserUpdated, onBack }: ProfileStepProps) {
                 <Label htmlFor="profile-email">Email</Label>
                 <Input id="profile-email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={savingProfile} />
               </div>
-              <Button onClick={handleSaveProfile} disabled={savingProfile || !name.trim() || !email.trim()} className="w-full" size="lg">
+              <Button onClick={handleSaveProfile} disabled={savingProfile || !hasProfileChanges || !name.trim() || !email.trim()} className="w-full !shadow-[2px_2px_0_0_currentColor] hover:!shadow-[2px_2px_0_0_currentColor] disabled:!shadow-[2px_2px_0_0_currentColor]" size="lg">
                 <Save className="w-5 h-5" strokeWidth={3} />
                 SIMPAN PROFILE
               </Button>
@@ -125,7 +128,7 @@ export function ProfileStep({ user, onUserUpdated, onBack }: ProfileStepProps) {
                 <Label htmlFor="new-password">Password baru</Label>
                 <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={savingPassword} />
               </div>
-              <Button onClick={handleChangePassword} disabled={savingPassword || !currentPassword || newPassword.length < 6} variant="secondary" className="w-full" size="lg">
+              <Button onClick={handleChangePassword} disabled={savingPassword || !currentPassword || newPassword.length < 6} className="w-full !shadow-[2px_2px_0_0_currentColor] hover:!shadow-[2px_2px_0_0_currentColor] disabled:!shadow-[2px_2px_0_0_currentColor]" size="lg">
                 <KeyRound className="w-5 h-5" strokeWidth={3} />
                 GANTI PASSWORD
               </Button>
