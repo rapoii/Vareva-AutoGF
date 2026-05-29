@@ -1,7 +1,7 @@
 {
   "buildCommand": "npm run build --prefix frontend",
   "outputDirectory": "frontend/dist",
-  "installCommand": "npm install --prefix frontend && python -m pip install -r backend/requirements.txt",
+  "installCommand": "npm install --prefix frontend",
   "crons": [
     {
       "path": "/api/batch/cron/process",
