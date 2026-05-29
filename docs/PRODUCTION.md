@@ -9,7 +9,7 @@ This guide lists the main changes to review before running Vareva AutoGF outside
 - Keep authentication enabled and use a strong `AUTH_SECRET_KEY` from platform secrets.
 - The built-in failed-login cooldown is in-memory per backend process; use a shared persistent rate limiter for multi-instance deployments.
 - Add broader rate limiting and abuse protection around parse, generate, and submit endpoints.
-- Move from local SQLite to a managed relational database for multi-user or multi-instance deployments.
+- Keep Google Sheets Apps Script deployment and sheet permissions locked to trusted maintainers.
 - Review logging so generated names, answers, form URLs, and submission payloads are not exposed publicly.
 - Confirm Google Forms automation is only used for forms you own, administer, or are authorized to test.
 
@@ -17,7 +17,7 @@ This guide lists the main changes to review before running Vareva AutoGF outside
 
 ### Vercel-only free deployment
 
-Use `vercel.json` and `api/app.py` to deploy the Vite frontend and FastAPI backend together on Vercel. Configure `STORAGE_BACKEND=google_sheets` because Vercel functions cannot rely on local SQLite persistence.
+Use `vercel.json` and `api/app.py` to deploy the Vite frontend and FastAPI backend together on Vercel. Google Sheets + Apps Script is the only persistence layer.
 
 Batch processing is split into short `/api/batch/sessions/{session_id}/process` calls. Each call processes at most one missing iteration and persists progress before returning. A daily Vercel Cron fallback calls `/api/batch/cron/process` to resume unfinished sessions when the browser is no longer active.
 
@@ -56,27 +56,22 @@ GEMINI_API_KEY=your_key
 GROQ_API_KEY=your_key
 CEREBRAS_API_KEY=your_key
 OPENROUTER_API_KEY=your_key
-DATABASE_URL=sqlite:///gform.db
+GOOGLE_SHEETS_SCRIPT_URL=https://script.google.com/macros/s/xxxxx/exec
+GOOGLE_SHEETS_SHARED_SECRET=your_shared_secret
+GOOGLE_SHEETS_TIMEOUT_SECONDS=60
 LLM_MAX_RETRIES=3
 DEBUG=false
 ```
 
 At least one provider key must be configured. Keep `DEBUG=false` in production.
 
-## Database
+## Storage
 
-SQLite is suitable for local development and single-user demos. Use a managed database when:
-
-- more than one app instance can run at the same time
-- multiple users will use the app
-- generated histories and logs must survive redeployments
-- backups, retention, and access control are required
-
-Before switching databases, verify SQLModel compatibility and run a migration/backfill plan for existing local data if needed.
+Google Sheets + Apps Script stores users, sessions, schemas, generation configs, submission logs, and generated persona history. Redeploy the Apps Script Web App after changing `scripts/google_apps_script/Code.gs.txt`, and keep the deployed URL in `GOOGLE_SHEETS_SCRIPT_URL` current.
 
 ## Security & Privacy
 
-- Never commit `.env`, local database files, provider keys, or generated answer logs.
+- Never commit `.env`, provider keys, Apps Script secrets, or generated answer exports.
 - Treat generated answers and personas as PII-like data.
 - Avoid logging full submission payloads unless debugging locally.
 - Sanitize client-facing errors; detailed exceptions should stay in server logs.
@@ -89,7 +84,7 @@ Before switching databases, verify SQLModel compatibility and run a migration/ba
 - Monitor AI provider quota/rate-limit errors.
 - Keep `LLM_MAX_RETRIES` modest because retries spend tokens.
 - Use local similarity warnings and compact answer history rather than AI retries for duplicate answers.
-- Persist per-form name and answer history in the database used by production.
+- Persist per-form name and answer history through Google Sheets storage.
 - Batch processing is reload-safe because each iteration is persisted, but Vercel-only processing requires the browser to stay open or revisit the progress URL. Use a durable queue if jobs must continue after the tab closes.
 
 ## Observability
@@ -114,4 +109,4 @@ The SSE stream already exposes live phase and provider events to the UI; product
 5. Confirm answer history avoids obvious repeated combinations for the same form URL.
 6. Submit to a test form you control.
 7. Export CSV, JSON, and Excel-compatible files.
-8. Confirm no secrets, `.env`, local databases, or generated logs are included in the published repository.
+8. Confirm no secrets, `.env`, Apps Script secrets, or generated logs are included in the published repository.

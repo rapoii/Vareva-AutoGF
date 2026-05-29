@@ -36,17 +36,9 @@ OPENROUTER_FALLBACK_MODELS=openrouter/free,google/gemma-3-27b-it:free,google/gem
 
 ## Storage
 
-Default local SQLite storage:
+Google Sheets + Apps Script is the only supported storage backend:
 
 ```env
-DATABASE_URL=sqlite:///gform.db
-STORAGE_BACKEND=sqlite
-```
-
-Google Sheets + Apps Script storage:
-
-```env
-STORAGE_BACKEND=google_sheets
 GOOGLE_SHEETS_SCRIPT_URL=https://script.google.com/macros/s/xxxxx/exec
 GOOGLE_SHEETS_SHARED_SECRET=secret-yang-sama-dengan-apps-script
 GOOGLE_SHEETS_TIMEOUT_SECONDS=15
@@ -77,4 +69,4 @@ DEBUG=false
 - Never commit `.env`.
 - Rotate keys if they are accidentally exposed.
 - Use platform secrets for deployment.
-- Keep local `gform.db` out of Git because it can contain generated answers and submission logs.
+- Treat Google Sheets rows as sensitive because they can contain generated answers and submission logs.

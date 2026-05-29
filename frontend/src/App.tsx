@@ -4,16 +4,14 @@ import { AuthGate } from "@/components/AuthGate"
 import { Button } from "@/components/ui/button"
 import { BatchSetupStep } from "@/components/BatchSetupStep"
 import { LoadingOverlay } from "@/components/LoadingOverlay"
-import { BatchResultStep } from "@/components/BatchResultStep"
 import { BatchProgressStep } from "@/components/BatchProgressStep"
-import { ReviewSubmitStep } from "@/components/ReviewSubmitStep"
 import { ProfileStep } from "@/components/ProfileStep"
 import { HistoryStep } from "@/components/HistoryStep"
 import { ScanConfigStep } from "@/components/ScanConfigStep"
 import { FloatingPixels, PixelRobot, PixelSparkle } from "@/components/PixelDecor"
-import { api, clearAuthToken, getAuthToken, subscribeApiLoading, type AuthUser, type BatchRunResponse, type BatchSessionStatus, type FormSchema, type GenerateResponse, type GenerationConfig, type ProfileHistoryItem } from "@/lib/api"
+import { api, clearAuthToken, getAuthToken, subscribeApiLoading, type AuthUser, type BatchSessionStatus, type FormSchema, type GenerationConfig, type ProfileHistoryItem } from "@/lib/api"
 
-type AppState = "setup" | "review" | "result" | "profile" | "history" | "scanConfig" | "progress"
+type AppState = "setup" | "profile" | "history" | "scanConfig" | "progress"
 
 type ScannedForm = {
   url: string
@@ -81,8 +79,6 @@ function goGeneratePath(sessionId: string) {
 function App() {
   const [appState, setAppState] = useState<AppState>("setup")
   const [setupUrl, setSetupUrl] = useState("")
-  const [pendingUrl, setPendingUrl] = useState("")
-  const [batchResult, setBatchResult] = useState<BatchRunResponse | null>(null)
   const [progressStatus, setProgressStatus] = useState<BatchSessionStatus | null>(null)
   const [progressLoading, setProgressLoading] = useState(false)
   const [processRetryTick, setProcessRetryTick] = useState(0)
@@ -102,14 +98,6 @@ function App() {
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
   const progressRequestInFlightRef = useRef(false)
   const processRequestInFlightRef = useRef(false)
-
-  // Streaming state
-  const [streamLogs, setStreamLogs] = useState<string[]>([])
-
-  // review mode state (now supports multiple personas)
-  const [reviewSchema, setReviewSchema] = useState<FormSchema | null>(null)
-  const [reviewSessionId] = useState("")
-  const [reviewResults, setReviewResults] = useState<GenerateResponse[]>([])
 
   const loadProgressSession = useCallback(async (sessionId: string, options: { showLoading?: boolean; redirectOnError?: boolean } = {}) => {
     if (progressRequestInFlightRef.current) return
@@ -319,9 +307,7 @@ function App() {
     }
 
     setConfirmStart(null)
-    setPendingUrl(pending.formUrl)
     setError(null)
-    setStreamLogs([])
     setStartingGenerate(true)
 
     try {
@@ -335,7 +321,6 @@ function App() {
       goGeneratePath(status.session_id)
       cacheProgressStatus(status)
       setProgressStatus(status)
-      setStreamLogs(["Session tersimpan. Processing berjalan bertahap dan aman direload."])
       setAppState("progress")
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal memulai session generate")
@@ -348,13 +333,9 @@ function App() {
   function handleReset() {
     goHomePath()
     setAppState("setup")
-    setBatchResult(null)
     setProgressStatus(null)
     setHistoryItems(null)
-    setReviewSchema(null)
-    setReviewResults([])
     setError(null)
-    setStreamLogs([])
   }
 
   return (
@@ -561,21 +542,6 @@ function App() {
           />
         )}
 
-        {authReady && authUser && appState === "review" && reviewSchema && reviewResults.length > 0 && (
-          <ReviewSubmitStep
-            schema={reviewSchema}
-            sessionId={reviewSessionId}
-            formUrl={pendingUrl}
-            generateResults={reviewResults}
-            systemLogs={streamLogs}
-            onBack={handleReset}
-            onReset={handleReset}
-          />
-        )}
-
-        {authReady && authUser && appState === "result" && batchResult && (
-          <BatchResultStep result={batchResult} onReset={handleReset} />
-        )}
       </main>
 
       {!authReady && !getGenerateSessionIdFromPath() && <LoadingOverlay title="MEMUAT AKUN" message="Mengambil data login dari backend." />}

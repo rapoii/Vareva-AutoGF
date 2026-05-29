@@ -9,7 +9,7 @@
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=111" />
   <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?style=for-the-badge&logo=vite&logoColor=white" />
   <img alt="Tailwind" src="https://img.shields.io/badge/Tailwind-4-38BDF8?style=for-the-badge&logo=tailwindcss&logoColor=white" />
-  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-SQLModel-003B57?style=for-the-badge&logo=sqlite&logoColor=white" />
+  <img alt="Google Sheets" src="https://img.shields.io/badge/Google%20Sheets-Apps%20Script-34A853?style=for-the-badge&logo=googlesheets&logoColor=white" />
 </p>
 
 ---
@@ -80,7 +80,7 @@ Add screenshots to a `docs/assets/` folder if you want GitHub visitors to see th
 
 | Layer | Stack |
 |---|---|
-| Backend | FastAPI, SQLModel, Pydantic, SQLite |
+| Backend | FastAPI, Pydantic Settings, Google Sheets Apps Script storage |
 | AI SDK | OpenAI SDK with multiple OpenAI-compatible providers |
 | HTTP | httpx with HTTP/2 |
 | Frontend | React 19, Vite, TypeScript |
@@ -113,8 +113,6 @@ OPENROUTER_API_KEY=your-openrouter-api-key-here
 OPENROUTER_MODEL=poolside/laguna-xs.2:free
 OPENROUTER_FALLBACK_MODELS=openrouter/free,google/gemma-3-27b-it:free,google/gemma-3-12b-it:free,meta-llama/llama-3.3-70b-instruct:free,mistralai/mistral-small-3.1-24b-instruct:free,qwen/qwen3-235b-a22b:free,deepseek/deepseek-chat-v3-0324:free
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-DATABASE_URL=sqlite:///./gform.db
-STORAGE_BACKEND=sqlite
 GOOGLE_SHEETS_SCRIPT_URL=your-apps-script-web-app-url
 GOOGLE_SHEETS_SHARED_SECRET=your-shared-secret
 GOOGLE_SHEETS_TIMEOUT_SECONDS=15
@@ -132,7 +130,7 @@ CEREBRAS_API_KEY=your-cerebras-api-key-here
 CEREBRAS_MODEL=qwen-3-235b-a22b-instruct-2507
 ```
 
-For Google Sheets storage, follow [docs/GOOGLE_SHEETS_STORAGE.md](docs/GOOGLE_SHEETS_STORAGE.md), then set `STORAGE_BACKEND=google_sheets`.
+For storage setup, follow [docs/GOOGLE_SHEETS_STORAGE.md](docs/GOOGLE_SHEETS_STORAGE.md). Google Sheets + Apps Script is the only supported persistence layer.
 
 ### 3. Frontend setup
 
@@ -242,7 +240,6 @@ v2/
 │   ├── app/
 │   │   ├── core/          # parser, generator, submitter, quality checks
 │   │   ├── data/          # Indonesian name bank
-│   │   ├── models/        # SQLModel tables
 │   │   ├── routes/        # FastAPI routes
 │   │   └── schemas/       # Pydantic schemas
 │   ├── tests/             # pytest suite
@@ -276,7 +273,7 @@ Before deploying:
 - Restrict CORS origins.
 - Configure provider API keys through platform secrets.
 - Do not log PII unless explicitly needed and protected.
-- Use Google Sheets storage for Vercel-only deployment; move from SQLite to a managed database if multiple long-lived backend instances/users are expected.
+- Keep Google Sheets Apps Script deployment current with [scripts/google_apps_script/Code.gs.txt](scripts/google_apps_script/Code.gs.txt).
 - Auth is built in with bearer tokens and an in-memory failed-login cooldown; use a shared persistent rate limiter if running multiple backend instances.
 - Add broader rate limiting and abuse protection around parse, generate, and submit endpoints.
 - Review Google Forms usage policy and only automate authorized forms.

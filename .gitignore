@@ -37,7 +37,7 @@ env/
 **/ENV/
 **/env/
 
-# Database
+# Local data
 *.db
 *.sqlite
 *.sqlite3

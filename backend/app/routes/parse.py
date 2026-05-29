@@ -5,14 +5,13 @@ from app.core.parser import parse_form
 from app.core.storage.google_sheets import GoogleSheetsStorageError
 from app.core.storage.models import StoredUser
 from app.core.storage.service import AppStorage
-from app.db import SessionDep
 from app.schemas.form import ParseRequest, ParseResponse
 
 router = APIRouter(prefix="/api/parse", tags=["parse"])
 
 
 @router.post("/", response_model=ParseResponse)
-def parse_google_form(req: ParseRequest, session: SessionDep, user: StoredUser = Depends(get_current_user)):
+def parse_google_form(req: ParseRequest, user: StoredUser = Depends(get_current_user)):
     try:
         schema = parse_form(req.url)
     except ValueError as e:
@@ -20,7 +19,7 @@ def parse_google_form(req: ParseRequest, session: SessionDep, user: StoredUser =
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    storage = AppStorage(session)
+    storage = AppStorage()
     try:
         stored_session = storage.create_session(
             form_url=req.url,

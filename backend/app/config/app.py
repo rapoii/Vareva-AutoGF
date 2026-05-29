@@ -1,13 +1,17 @@
 """Application-wide configuration settings."""
 from functools import lru_cache
+import os
 from typing import Any
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.config.database import DatabaseConfig
 from app.config.ai_providers import AIProviderConfig
 from app.config.storage import StorageConfig
 from app.config.auth import AuthConfig
+
+
+def _env_file_setting() -> str | None:
+    return None if os.getenv("PYTEST_DISABLE_DOTENV") == "1" else ".env"
 
 
 class AppConfig(BaseSettings):
@@ -47,32 +51,21 @@ class AppConfig(BaseSettings):
 
     # Delegate to modular configs
     @property
-    def database(self) -> DatabaseConfig:
-        """Get database configuration."""
-        return DatabaseConfig()
-
-    @property
     def ai_providers(self) -> AIProviderConfig:
         """Get AI provider configuration."""
-        return AIProviderConfig()
+        return AIProviderConfig(_env_file=_env_file_setting())
 
     @property
     def storage(self) -> StorageConfig:
-        return StorageConfig()
+        return StorageConfig(_env_file=_env_file_setting())
 
     @property
     def auth(self) -> AuthConfig:
-        return AuthConfig()
-
-    # Backward compatibility properties - Database
-    @property
-    def database_url(self) -> str:
-        """Get database URL (backward compatible)."""
-        return self.database.database_url
+        return AuthConfig(_env_file=_env_file_setting())
 
     @property
     def storage_backend(self) -> str:
-        return self.storage.storage_backend
+        return "google_sheets"
 
     @property
     def google_sheets_script_url(self) -> str:
@@ -152,4 +145,4 @@ def get_settings() -> AppConfig:
 
     Uses LRU cache to avoid re-reading env files on every call.
     """
-    return AppConfig()
+    return AppConfig(_env_file=_env_file_setting())

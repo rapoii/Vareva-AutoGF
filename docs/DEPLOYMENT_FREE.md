@@ -105,15 +105,9 @@ Mitigations:
 - Avoid many simultaneous users on the free setup.
 - Retry after a short wait if Apps Script reports a lock timeout.
 
-### SQLite should not be the production source of truth on Vercel
+### Google Sheets is the required source of truth
 
-Vercel functions cannot rely on local SQLite persistence across requests/deploys. Use Google Sheets storage for this free setup.
-
-Mitigation:
-
-```env
-STORAGE_BACKEND=google_sheets
-```
+All users, sessions, schemas, generation configs, and logs are stored through Apps Script. Redeploy the Web App whenever `scripts/google_apps_script/Code.gs.txt` changes.
 
 ## Smoke checklist
 

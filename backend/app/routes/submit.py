@@ -5,7 +5,6 @@ from app.core.auth import get_current_user
 from app.core.storage.models import StoredUser
 from app.core.storage.service import AppStorage
 from app.core.submitter import submit
-from app.db import SessionDep
 from app.schemas.submit import SubmitRequest, SubmitResponse
 
 logger = logging.getLogger(__name__)
@@ -13,8 +12,8 @@ router = APIRouter(prefix="/api/submit", tags=["submit"])
 
 
 @router.post("/", response_model=SubmitResponse)
-def submit_form(req: SubmitRequest, session: SessionDep, user: StoredUser = Depends(get_current_user)):
-    storage = AppStorage(session)
+def submit_form(req: SubmitRequest, user: StoredUser = Depends(get_current_user)):
+    storage = AppStorage()
     if not storage.session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Session {req.session_id} not found")
 

@@ -16,7 +16,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.db import create_db_and_tables
 
 TEST_FORM_URL = os.getenv(
     "TEST_FORM_URL",
@@ -40,11 +39,11 @@ AI_PROVIDER_CONFIGURED = any(
         "OPENROUTER_API_KEY",
     ]
 )
+LIVE_E2E_ENABLED = os.getenv("RUN_LIVE_E2E") == "1"
 
 
 @pytest.fixture(scope="module")
 def client():
-    create_db_and_tables()
     with TestClient(app) as c:
         yield c
 
@@ -56,8 +55,8 @@ def test_health_check(client: TestClient):
 
 
 @pytest.mark.skipif(
-    not TEST_FORM_URL.startswith("https://docs.google.com/forms") or not AI_PROVIDER_CONFIGURED,
-    reason="Set TEST_FORM_URL and one AI provider API key to run the live e2e test",
+    not LIVE_E2E_ENABLED or not TEST_FORM_URL.startswith("https://docs.google.com/forms") or not AI_PROVIDER_CONFIGURED,
+    reason="Set RUN_LIVE_E2E=1, TEST_FORM_URL, and one AI provider API key to run the live e2e test",
 )
 def test_full_cycle_parse_generate_submit(client: TestClient):
     # Step 1: Parse

@@ -9,7 +9,7 @@ flowchart TD
   UI[React Frontend] -->|POST form URL/count| API[FastAPI Backend]
   API --> Parser[Google Form Parser]
   Parser --> Analysis[Form Context Analysis]
-  API --> DB[(SQLite / SQLModel)]
+  API --> GS[(Google Sheets / Apps Script)]
   DB --> History[Per-form History]
   Analysis --> Generator[AI Generator]
   History --> Generator
@@ -62,11 +62,12 @@ flowchart TD
 
 ## Data Model
 
-| Table | Purpose |
+| Sheet | Purpose |
 |---|---|
-| `personas` | Saved custom persona profiles |
+| `users` | Auth profiles and password hashes |
 | `sessions` | Batch submission sessions |
 | `form_schemas` | Cached parsed form schema per session |
+| `generation_configs` | Durable generation instructions/config per session |
 | `submission_logs` | Answers and submit status per iteration |
 | `generated_persona_logs` | Used generated persona names per form URL |
 
@@ -75,7 +76,7 @@ flowchart TD
 For repeated submissions to the same form URL:
 
 1. Load recent sessions for the same `form_url`.
-2. Load previous `submission_logs.answers_used` for those sessions.
+2. Load previous `submission_logs.answers_json` for those sessions.
 3. Load previously generated persona names from `generated_persona_logs`.
 4. Generate new personas with `blocked_names`.
 5. Generate answers with compact prior answer history in the prompt.

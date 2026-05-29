@@ -61,20 +61,6 @@ export interface GenerationConfig {
   custom_answers: Record<string, CustomAnswerValue>
 }
 
-export interface GenerateResponse {
-  answers: Record<string, unknown>
-  tokens_used: number
-  retries: number
-}
-
-export interface SubmitResponse {
-  status: string
-  http_code: number
-  session_id?: string
-  log_id?: string
-  error_message?: string | null
-}
-
 export interface IterationResult {
   iteration: number
   persona_text: string
@@ -139,54 +125,6 @@ export interface DeleteFormHistoryResponse {
   deleted_submission_logs: number
   deleted_generated_persona_logs: number
 }
-
-export interface SSESessionStartedEvent {
-  type: "session_started"
-  data: {
-    session_id: string
-    form_url: string
-    form_title: string
-    count: number
-    mode: string
-    status: string
-  }
-}
-
-export interface SSELogEvent {
-  type: "log"
-  data: {
-    phase: "init" | "parse" | "generate" | "submit"
-    message: string
-  }
-}
-
-export interface SSEProviderEvent {
-  type: "provider"
-  data: {
-    phase: "generate" | "submit"
-    provider: string
-    iteration?: number
-  }
-}
-
-export interface SSEIterationResultEvent {
-  type: "iteration_result"
-  data: IterationResult
-}
-
-export interface SSECompleteEvent {
-  type: "complete"
-  data: BatchRunResponse
-}
-
-export interface SSEErrorEvent {
-  type: "error"
-  data: {
-    message: string
-  }
-}
-
-export type SSEEvent = SSESessionStartedEvent | SSELogEvent | SSEProviderEvent | SSEIterationResultEvent | SSECompleteEvent | SSEErrorEvent
 
 const API_LOADING_EVENT = "vareva-api-loading"
 const SILENT_LOADING_PATHS = ["/api/batch/sessions/"]
@@ -319,37 +257,6 @@ export const api = {
     return normalizeParseResponse(data)
   },
 
-  async generate(schema: FormSchema, persona_text: string): Promise<GenerateResponse> {
-    return requestJson<GenerateResponse>("/api/generate/", {
-      method: "POST",
-      body: JSON.stringify({ schema, persona_text }),
-    })
-  },
-
-  async submit(
-    form_url: string,
-    answers: Record<string, unknown>,
-    session_id = "",
-    page_count = 1,
-  ): Promise<SubmitResponse> {
-    return requestJson<SubmitResponse>("/api/submit/", {
-      method: "POST",
-      body: JSON.stringify({ form_url, answers, session_id, page_count }),
-    })
-  },
-
-  async batchRun(
-    form_url: string,
-    count: number,
-    skip_submit: boolean,
-    session_id?: string,
-    generation_config?: GenerationConfig | null,
-  ): Promise<BatchRunResponse> {
-    return requestJson<BatchRunResponse>("/api/batch/run", {
-      method: "POST",
-      body: JSON.stringify({ form_url, count, skip_submit, session_id, generation_config }),
-    })
-  },
 
   async startBatchJob(
     form_url: string,
@@ -391,65 +298,4 @@ export const api = {
       method: "POST",
     })
   },
-}
-
-export async function batchRunStream(
-  form_url: string,
-  count: number,
-  skip_submit: boolean,
-  session_id: string,
-  generation_config: GenerationConfig | null,
-  onEvent: (event: SSEEvent) => void | Promise<void>,
-): Promise<void> {
-  const response = await fetch(`${BASE}/api/batch/run-stream`, {
-    method: "POST",
-    headers: {
-      "Accept": "text/event-stream",
-      "Content-Type": "application/json",
-      ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
-    },
-    body: JSON.stringify({ form_url, count, skip_submit, session_id, generation_config }),
-  })
-
-  if (!response.ok || !response.body) {
-    const data = await response.json().catch(() => null)
-    const detail = typeof data?.detail === "string" ? data.detail : "Gagal membuka stream batch"
-    throw new Error(detail)
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ""
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-    const events = buffer.split("\n\n")
-    buffer = events.pop() ?? ""
-
-    for (const rawEvent of events) {
-      const event = parseSseEvent(rawEvent)
-      if (event) {
-        await onEvent(event)
-      }
-    }
-  }
-}
-
-function parseSseEvent(rawEvent: string): SSEEvent | null {
-  const eventLine = rawEvent.split("\n").find((line) => line.startsWith("event:"))
-  const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data:"))
-
-  if (!eventLine || !dataLine) return null
-
-  const type = eventLine.replace("event:", "").trim()
-  const data = JSON.parse(dataLine.replace("data:", "").trim())
-
-  if (type === "session_started" || type === "log" || type === "provider" || type === "iteration_result" || type === "complete" || type === "error") {
-    return { type, data } as SSEEvent
-  }
-
-  return null
 }

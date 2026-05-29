@@ -17,7 +17,6 @@ from app.core.storage.models import StoredUser
 from app.core.storage.service import AppStorage
 from app.core.submitter import submit
 from app.config import get_settings
-from app.db import SessionDep
 from app.schemas.batch import BatchProcessRequest, BatchReviewAnswerUpdate, BatchRunRequest, BatchRunResponse, BatchSessionStatus, GenerationConfig, IterationResult
 from app.schemas.form import FormAnalysis, FormSchema
 
@@ -301,13 +300,13 @@ def _process_one_iteration(storage: AppStorage, session_id: str, user_id: str) -
 
 
 @router.get("/sessions/{session_id}", response_model=BatchSessionStatus)
-def get_batch_session(session_id: str, db: SessionDep, user: StoredUser = Depends(get_current_user)):
-    return _status_from_storage(AppStorage(db), session_id, user.id)
+def get_batch_session(session_id: str, user: StoredUser = Depends(get_current_user)):
+    return _status_from_storage(AppStorage(), session_id, user.id)
 
 
 @router.post("/sessions/{session_id}/process", response_model=BatchSessionStatus)
-def process_batch_session(session_id: str, req: BatchProcessRequest, db: SessionDep, user: StoredUser = Depends(get_current_user)):
-    storage = AppStorage(db)
+def process_batch_session(session_id: str, req: BatchProcessRequest, user: StoredUser = Depends(get_current_user)):
+    storage = AppStorage()
     try:
         status = _status_from_storage(storage, session_id, user.id)
         for _ in range(req.max_iterations):
@@ -320,13 +319,13 @@ def process_batch_session(session_id: str, req: BatchProcessRequest, db: Session
 
 
 @router.get("/cron/process")
-def process_running_sessions_cron(db: SessionDep, authorization: str | None = Header(default=None)):
+def process_running_sessions_cron(authorization: str | None = Header(default=None)):
     settings = get_settings()
     expected = f"Bearer {settings.auth_secret_key}"
     if authorization != expected:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    storage = AppStorage(db)
+    storage = AppStorage()
     processed: list[dict[str, object]] = []
     try:
         for session in storage.load_running_sessions(limit=3):
@@ -369,8 +368,8 @@ def _get_review_iteration(storage: AppStorage, session_id: str, iteration: int, 
 
 
 @router.patch("/sessions/{session_id}/iterations/{iteration}/answers", response_model=IterationResult)
-def update_review_answers(session_id: str, iteration: int, req: BatchReviewAnswerUpdate, db: SessionDep, user: StoredUser = Depends(get_current_user)):
-    storage = AppStorage(db)
+def update_review_answers(session_id: str, iteration: int, req: BatchReviewAnswerUpdate, user: StoredUser = Depends(get_current_user)):
+    storage = AppStorage()
     _session, result = _get_review_iteration(storage, session_id, iteration, user.id)
 
     try:
@@ -382,8 +381,8 @@ def update_review_answers(session_id: str, iteration: int, req: BatchReviewAnswe
 
 
 @router.post("/sessions/{session_id}/submit-reviewed", response_model=BatchSessionStatus)
-def submit_reviewed_session(session_id: str, db: SessionDep, user: StoredUser = Depends(get_current_user)):
-    storage = AppStorage(db)
+def submit_reviewed_session(session_id: str, user: StoredUser = Depends(get_current_user)):
+    storage = AppStorage()
     session = storage.load_session_detail(session_id, user_id=user.id)
     if not session:
         raise HTTPException(status_code=404, detail="Session tidak ditemukan")
@@ -451,8 +450,8 @@ def submit_reviewed_session(session_id: str, db: SessionDep, user: StoredUser = 
 
 
 @router.post("/jobs", response_model=BatchSessionStatus)
-def start_batch_job(req: BatchRunRequest, db: SessionDep, user: StoredUser = Depends(get_current_user)):
-    storage = AppStorage(db)
+def start_batch_job(req: BatchRunRequest, user: StoredUser = Depends(get_current_user)):
+    storage = AppStorage()
     try:
         form_schema, _form_analysis, _schema_source = _resolve_form_schema(req, storage, user)
     except HTTPException:
@@ -493,11 +492,11 @@ def start_batch_job(req: BatchRunRequest, db: SessionDep, user: StoredUser = Dep
 
 
 @router.post("/run")
-def batch_run(req: BatchRunRequest, db: SessionDep, request: Request, user: StoredUser = Depends(get_current_user)):
+def batch_run(req: BatchRunRequest, request: Request, user: StoredUser = Depends(get_current_user)):
     if "text/event-stream" in request.headers.get("accept", ""):
         logger.info("Batch stream requested through /api/batch/run")
-        return batch_run_stream(req, db, user)
-    storage = AppStorage(db)
+        return batch_run_stream(req, user)
+    storage = AppStorage()
     try:
         form_schema, form_analysis, _schema_source = _resolve_form_schema(req, storage, user)
     except HTTPException:
@@ -650,13 +649,13 @@ def batch_run(req: BatchRunRequest, db: SessionDep, request: Request, user: Stor
 
 @router.post("/run-stream")
 @router.post("/run-stream/")
-def batch_run_stream(req: BatchRunRequest, db: SessionDep, user: StoredUser = Depends(get_current_user)):
+def batch_run_stream(req: BatchRunRequest, user: StoredUser = Depends(get_current_user)):
     """
     Server-Sent Events endpoint for real-time batch execution updates.
     Yields JSON events: { phase, message, provider?, ... }
     """
     logger.info("Batch stream requested through /api/batch/run-stream")
-    storage = AppStorage(db)
+    storage = AppStorage()
 
     def event_stream():
         yield _sse("log", {"phase": "init", "message": "Starting backend background job..."})

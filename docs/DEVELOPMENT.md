@@ -94,14 +94,6 @@ Fix:
 
 The frontend must call the SSE endpoint and backend must emit provider events. Use `/api/batch/run-stream` for live logs.
 
-### SQLModel Mypy false positives
-
-SQLModel fields can be inferred as plain Python types. Prefer:
-
-- `col(Model.field)` for SQL expressions
-- two-step queries instead of complex joins if needed
-- `sqlalchemy.text()` for simple order clauses when Mypy misreads `.desc()`
-
 ### Claude Code Auto Mode blocks shell commands
 
 This is a Claude Code permission/classifier issue, not a project issue. Run the command manually or adjust local permissions.

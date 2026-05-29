@@ -1,17 +1,9 @@
-from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import create_db_and_tables
-from app.routes import parse, generate, submit, personas, batch, auth
+from app.routes import parse, generate, submit, batch, auth
 from app.config import get_settings
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    create_db_and_tables()
-    yield
 
 
 # Get settings for metadata
@@ -21,7 +13,6 @@ app = FastAPI(
     title=settings.app_name,
     description="Automate Google Form submissions using AI-generated answers.",
     version=settings.app_version,
-    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -36,7 +27,6 @@ app.include_router(auth.router)
 app.include_router(parse.router)
 app.include_router(generate.router)
 app.include_router(submit.router)
-app.include_router(personas.router)
 app.include_router(batch.router)
 
 

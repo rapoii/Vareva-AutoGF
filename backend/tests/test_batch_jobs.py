@@ -27,7 +27,71 @@ FORM_SCHEMA = FormSchema.model_validate({
 })
 
 
+class FakeSheetsStorage:
+    def __init__(self):
+        self.sessions = {}
+        self.schemas = {}
+        self.configs = {}
+        self.logs = []
+        self.next_session = 1
+        self.next_log = 1
+
+    def call_action(self, action, payload):
+        if action == "create_session":
+            session_id = f"ses_{self.next_session}"
+            self.next_session += 1
+            session = {"id": session_id, **payload}
+            self.sessions[session_id] = session
+            return {"session": session}
+        if action == "save_form_schema":
+            self.schemas[payload["session_id"]] = payload
+            return {"id": f"sch_{payload['session_id']}"}
+        if action == "get_form_schema":
+            return {"schema": self.schemas.get(payload["session_id"])}
+        if action == "save_generation_config":
+            self.configs[payload["session_id"]] = payload
+            return {"id": f"cfg_{payload['session_id']}"}
+        if action == "get_generation_config":
+            return {"config": self.configs.get(payload["session_id"])}
+        if action == "get_session_detail":
+            session = self.sessions.get(payload["session_id"])
+            if session:
+                session = {**session, "session_id": session["id"]}
+            return {"session": session}
+        if action == "get_session_logs":
+            session_id = payload["session_id"]
+            return {"logs": [row for row in self.logs if row["session_id"] == session_id]}
+        if action == "append_submission_log":
+            log = {"id": f"log_{self.next_log}", **payload}
+            self.next_log += 1
+            self.logs.append(log)
+            return {"id": log["id"]}
+        if action == "update_session_result":
+            session = self.sessions.get(payload["session_id"])
+            if session:
+                session.update({
+                    "success_count": payload.get("success_count", 0),
+                    "fail_count": payload.get("fail_count", 0),
+                    "status": payload.get("status", "completed"),
+                })
+            return {"updated": bool(session)}
+        if action == "get_answer_history":
+            return {"history": []}
+        if action == "get_used_persona_names":
+            return {"names": []}
+        if action == "append_generated_persona_log":
+            return {"id": "per_1"}
+        raise AssertionError(f"Unexpected storage action: {action}")
+
+
+def install_fake_sheets(monkeypatch):
+    fake = FakeSheetsStorage()
+    monkeypatch.setattr("app.core.storage.service.GoogleSheetsClient", lambda: fake)
+    return fake
+
+
 def test_start_batch_job_creates_running_session(monkeypatch):
+    install_fake_sheets(monkeypatch)
     client = TestClient(app)
 
     monkeypatch.setattr(
@@ -69,6 +133,7 @@ def test_start_batch_job_creates_running_session(monkeypatch):
 
 
 def test_run_stream_starts_background_job_and_completes_from_storage(monkeypatch):
+    install_fake_sheets(monkeypatch)
     client = TestClient(app)
 
     monkeypatch.setattr(
