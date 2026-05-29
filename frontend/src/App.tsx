@@ -374,9 +374,9 @@ function App() {
           <div className="brutal-center h-14 sm:h-16 md:h-20 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-1 min-w-0">
               <div
-                className="rounded-md md:rounded-lg border-brutal-2 md:border-brutal-4 bg-(--color-bg-alt) text-(--color-ink) p-1 sm:p-1.5 md:p-2 shadow-brutal-sm md:shadow-brutal gpu -translate-x-px -translate-y-px md:-translate-x-0.5 md:-translate-y-0.5 shrink-0"
+                className="rounded-md md:rounded-lg border-brutal-2 md:border-brutal-4 bg-(--color-bg-alt) text-(--color-ink) shadow-brutal-sm md:shadow-brutal gpu -translate-x-px -translate-y-px md:-translate-x-0.5 md:-translate-y-0.5 shrink-0 overflow-hidden flex items-center justify-center"
               >
-                <img src="/logo.png" alt="Vareva Logo" className="w-6 h-6 sm:w-8 sm:h-8 md:w-12 md:h-12 object-contain" />
+                <img src="/logo.png" alt="Vareva Logo" className="w-8 h-8 sm:w-11 sm:h-11 md:w-16 md:h-16 object-cover" />
               </div>
               <div className="min-w-0">
                 <h1 className="font-display text-[13px] sm:text-lg md:text-2xl leading-none truncate">
