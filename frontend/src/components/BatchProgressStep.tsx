@@ -1,11 +1,11 @@
 import { useState } from "react"
-import { Check, ChevronDown, ChevronUp, Pencil, RefreshCw, RotateCcw, Send, ShieldCheck, Terminal, X } from "lucide-react"
+import { Check, ChevronDown, ChevronUp, Pencil, RefreshCw, RotateCcw, Send, ShieldCheck, Terminal, X, Database } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { LoadingOverlay } from "@/components/LoadingOverlay"
-import { PixelRobot, PixelStar } from "@/components/PixelDecor"
+import { PixelStar } from "@/components/PixelDecor"
 import { api, type BatchSessionStatus } from "@/lib/api"
 
 interface BatchProgressStepProps {
@@ -145,7 +145,7 @@ export function BatchProgressStep({ status, loading = false, onRefresh, onReset 
           <CardContent className="p-4 min-[380px]:p-5 md:p-8">
             <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
               <div className="border-brutal-4 bg-(--color-bg-alt) text-(--color-ink) p-3 min-[380px]:p-4 shadow-brutal gpu" style={{ animation: "var(--animate-bob)" }}>
-                {isRunning ? <PixelRobot size={48} /> : <ShieldCheck className="w-12 h-12" strokeWidth={2.5} />}
+                {isRunning ? <img src="/logo.png" alt="Vareva Logo" className="w-12 h-12 object-contain" /> : <ShieldCheck className="w-12 h-12" strokeWidth={2.5} />}
               </div>
 
               <div className="flex-1 min-w-0 text-center md:text-left">
@@ -195,7 +195,7 @@ export function BatchProgressStep({ status, loading = false, onRefresh, onReset 
 
         <div className="space-y-2 w-full min-w-0">
           <h3 className="font-display text-[10px] min-[380px]:text-xs uppercase tracking-widest mb-3 flex items-center gap-2 wrap-break-word">
-            <PixelRobot size={16} /> Detail Tersimpan ({results.length})
+            <Database size={16} /> Detail Tersimpan ({results.length})
           </h3>
           {results.length > 0 ? (
             results.map((item) => {

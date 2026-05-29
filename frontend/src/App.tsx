@@ -8,7 +8,7 @@ import { BatchProgressStep } from "@/components/BatchProgressStep"
 import { ProfileStep } from "@/components/ProfileStep"
 import { HistoryStep } from "@/components/HistoryStep"
 import { ScanConfigStep } from "@/components/ScanConfigStep"
-import { FloatingPixels, PixelRobot, PixelSparkle } from "@/components/PixelDecor"
+import { FloatingPixels, PixelSparkle } from "@/components/PixelDecor"
 import { api, clearAuthToken, getAuthToken, subscribeApiLoading, type AuthUser, type BatchSessionStatus, type FormSchema, type GenerationConfig, type ProfileHistoryItem } from "@/lib/api"
 
 type AppState = "setup" | "profile" | "history" | "scanConfig" | "progress"
@@ -376,7 +376,7 @@ function App() {
               <div
                 className="rounded-md md:rounded-lg border-brutal-2 md:border-brutal-4 bg-(--color-bg-alt) text-(--color-ink) p-1 sm:p-1.5 md:p-2 shadow-brutal-sm md:shadow-brutal gpu -translate-x-px -translate-y-px md:-translate-x-0.5 md:-translate-y-0.5 shrink-0"
               >
-                <PixelRobot className="w-6 h-6 sm:w-8 sm:h-8 md:w-12 md:h-12" />
+                <img src="/logo.png" alt="Vareva Logo" className="w-6 h-6 sm:w-8 sm:h-8 md:w-12 md:h-12 object-contain" />
               </div>
               <div className="min-w-0">
                 <h1 className="font-display text-[13px] sm:text-lg md:text-2xl leading-none truncate">

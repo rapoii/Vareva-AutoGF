@@ -113,7 +113,7 @@ For UI changes, start the backend and frontend, open the Vite app, and manually 
 - Keep step-specific UI inside `frontend/src/components/*Step.tsx`.
 - Reuse existing UI primitives in `frontend/src/components/ui/` before adding new primitives.
 - Preserve the current neobrutalist/pixel-art visual style unless asked to redesign it.
-- Current UI direction is Valleycos-inspired pastel pixel/neobrutal: cream/pink dotted background, dark plum borders/shadows, pink soft/cream/peach card surfaces, readable ink text on pink, solid red destructive actions with white text/icons, and consistent shadow width alignment.
+- Current UI direction is a pastel pixel/neobrutal aesthetic: cream/pink dotted background, dark plum borders/shadows, pink soft/cream/peach card surfaces, readable ink text on pink, solid red destructive actions with white text/icons, and consistent shadow width alignment.
 - Loading states should use the shared `LoadingOverlay` modal pattern so the previous/current page remains visible behind the overlay.
 - Progress pages should keep cards, empty states, and bottom action buttons visually aligned in width and shadow, including disabled/loading button states.
 - Review progress details should show question text above the answer, use compact icon-only edit buttons in the question header, and avoid extra answer labels when the content is already clear.
