@@ -49,7 +49,7 @@ GROQ_API_KEY=your-groq-key
 GROQ_MODEL=llama-3.3-70b-versatile
 CEREBRAS_API_KEY=your-cerebras-key
 CEREBRAS_MODEL=qwen-3-235b-a22b-instruct-2507
-CORS_ORIGINS=https://your-vercel-app.vercel.app,http://localhost:5173
+CORS_ORIGINS=https://vareva-auto-gf.vercel.app
 ```
 
 Do not set `VITE_API_BASE_URL` for the Vercel deployment unless you intentionally host the API elsewhere. The frontend uses same-origin `/api` in production.

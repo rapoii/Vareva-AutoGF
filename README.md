@@ -118,6 +118,7 @@ GOOGLE_SHEETS_SHARED_SECRET=your-shared-secret
 GOOGLE_SHEETS_TIMEOUT_SECONDS=15
 AUTH_SECRET_KEY=change-this-secret-before-deploy
 AUTH_TOKEN_EXPIRE_MINUTES=10080
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 LLM_MAX_RETRIES=3
 
 GEMINI_API_KEY=your-gemini-api-key-here
@@ -192,7 +193,7 @@ flowchart LR
 | `GET` | `/` | Health check |
 | `POST` | `/api/parse/` | Parse Google Form URL into schema |
 | `POST` | `/api/generate/` | Generate personas and answers |
-| `POST` | `/api/submit/` | Submit a single answer payload |
+| `POST` | `/api/submit/` | Submit a single answer payload for an existing user-owned session |
 | `POST` | `/api/batch/jobs` | Create reload-safe saved batch session |
 | `GET` | `/api/batch/sessions/{session_id}` | Read stored batch progress/session results |
 | `POST` | `/api/batch/sessions/{session_id}/process` | Process one missing batch iteration |
@@ -263,6 +264,7 @@ v2/
 - [API Reference](docs/API.md)
 - [Environment Variables](docs/ENVIRONMENT.md)
 - [Development Guide](docs/DEVELOPMENT.md)
+- [Product Requirements](PRD.md)
 - [Production Notes](docs/PRODUCTION.md)
 - [Free Deployment Guide](docs/DEPLOYMENT_FREE.md)
 
@@ -270,7 +272,7 @@ v2/
 
 Before deploying:
 
-- Restrict CORS origins.
+- Set `CORS_ORIGINS` to the deployed frontend domain, for example `https://vareva-auto-gf.vercel.app`.
 - Configure provider API keys through platform secrets.
 - Do not log PII unless explicitly needed and protected.
 - Keep Google Sheets Apps Script deployment current with [scripts/google_apps_script/Code.gs.txt](scripts/google_apps_script/Code.gs.txt).

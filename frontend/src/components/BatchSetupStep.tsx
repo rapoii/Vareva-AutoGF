@@ -345,7 +345,7 @@ export function BatchSetupStep({ url, onUrlChange, onScan, onClearScan, onStart,
       <div className="md:hidden mt-3 border-y-[3px] border-(--color-ink) bg-(--color-bg) py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
         <Button
           onClick={handleSubmit}
-          disabled={loading || !url.trim()}
+          disabled={!canGenerate}
           className="w-[calc(100%+14px)] disabled:shadow-brutal"
           size="lg"
           variant={reviewMode ? "secondary" : "default"}

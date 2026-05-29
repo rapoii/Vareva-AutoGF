@@ -17,6 +17,8 @@ submission_logs
 generated_persona_logs
 ```
 
+The backend is Google Sheets-only; there is no SQLite or local database fallback. Review-mode rows use `pending_review` in `submission_logs` until they are submitted.
+
 ## 2. Isi header tiap tab
 
 ### users
@@ -115,6 +117,7 @@ GOOGLE_SHEETS_SHARED_SECRET=secret-yang-sama-dengan-apps-script
 GOOGLE_SHEETS_TIMEOUT_SECONDS=15
 AUTH_SECRET_KEY=secret-jwt-random-lain
 AUTH_TOKEN_EXPIRE_MINUTES=10080
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
 ## 8. Test manual

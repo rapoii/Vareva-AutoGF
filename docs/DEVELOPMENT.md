@@ -63,9 +63,11 @@ Compile changed Python files:
 
 ```powershell
 Set-Location frontend
-npm run build
 npm run lint
+npm run build
 ```
+
+For UI changes, also run the app in a browser and smoke the changed flow. Important flows include mobile scan/generate gating, review-mode answer editing, `Yang lain:` custom option clearing, and reviewed-answer submission.
 
 ## Common Development Issues
 

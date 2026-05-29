@@ -5,7 +5,7 @@ This guide lists the main changes to review before running Vareva AutoGF outside
 ## Deployment Checklist
 
 - Configure provider API keys through platform secrets, not committed files.
-- Restrict CORS origins to trusted frontend domains.
+- Set `CORS_ORIGINS` to trusted frontend domains only, for example `https://vareva-auto-gf.vercel.app`.
 - Keep authentication enabled and use a strong `AUTH_SECRET_KEY` from platform secrets.
 - The built-in failed-login cooldown is in-memory per backend process; use a shared persistent rate limiter for multi-instance deployments.
 - Add broader rate limiting and abuse protection around parse, generate, and submit endpoints.
@@ -75,7 +75,7 @@ Google Sheets + Apps Script stores users, sessions, schemas, generation configs,
 - Treat generated answers and personas as PII-like data.
 - Avoid logging full submission payloads unless debugging locally.
 - Sanitize client-facing errors; detailed exceptions should stay in server logs.
-- Tighten CORS from `*` to explicit frontend origins.
+- Keep `CORS_ORIGINS` explicit in production; do not use wildcard origins for public deployments.
 - Consider authentication and per-user authorization before public exposure.
 
 ## Reliability

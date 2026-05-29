@@ -221,5 +221,7 @@ class AppStorage:
             "status": status,
         })
 
-    def session_exists(self, session_id: str) -> bool:
-        return bool(session_id)
+    def session_exists(self, session_id: str, user_id: str | None = None) -> bool:
+        if not session_id:
+            return False
+        return self.load_session_detail(session_id, user_id=user_id) is not None

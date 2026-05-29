@@ -29,7 +29,7 @@ class AppConfig(BaseSettings):
     app_name: str = "Vareva AutoGF"
     app_version: str = "1.0.0"
     debug: bool = False
-    cors_origins: str = "*"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     @field_validator("debug", mode="before")
     @classmethod

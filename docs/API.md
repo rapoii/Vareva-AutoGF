@@ -62,7 +62,7 @@ POST /api/submit/
 Content-Type: application/json
 ```
 
-Request shape depends on the parsed form schema and answer map.
+Request shape depends on the parsed form schema and answer map. The `session_id` must refer to an existing session owned by the authenticated user; unknown or cross-user sessions return `404`.
 
 The submitter supports:
 
@@ -145,7 +145,7 @@ POST /api/batch/run
 Content-Type: application/json
 ```
 
-Kept for compatibility. New frontend flows should prefer `/api/batch/jobs`.
+Kept for compatibility. New frontend flows should prefer `/api/batch/jobs`. In review mode (`skip_submit: true`), generated answers are persisted as `pending_review` rows so session reload and `/submit-reviewed` still work.
 
 ## Batch Run Stream
 

@@ -60,9 +60,10 @@ AUTH_TOKEN_EXPIRE_MINUTES=10080
 ```env
 LLM_MAX_RETRIES=3
 DEBUG=false
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
-`LLM_MAX_RETRIES` controls retries for invalid JSON or invalid form answers. The app does not retry AI calls solely because answers are similar; similarity is checked locally as a warning to save tokens.
+`LLM_MAX_RETRIES` controls retries for invalid JSON or invalid form answers. The app does not retry AI calls solely because answers are similar; similarity is checked locally as a warning to save tokens. `CORS_ORIGINS` should be set to your deployed frontend domain in production.
 
 ## Security Notes
 

@@ -4,6 +4,7 @@ from app.core.generator import _completion_extra_kwargs
 
 
 def test_openrouter_fallback_models_are_parsed_and_deduped(monkeypatch):
+    monkeypatch.setenv("PYTEST_DISABLE_DOTENV", "1")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
@@ -30,6 +31,7 @@ def test_openrouter_fallback_models_are_parsed_and_deduped(monkeypatch):
 
 
 def test_non_openrouter_provider_has_no_extra_body(monkeypatch):
+    monkeypatch.setenv("PYTEST_DISABLE_DOTENV", "1")
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)

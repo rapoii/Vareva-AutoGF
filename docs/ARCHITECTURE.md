@@ -10,7 +10,7 @@ flowchart TD
   API --> Parser[Google Form Parser]
   Parser --> Analysis[Form Context Analysis]
   API --> GS[(Google Sheets / Apps Script)]
-  DB --> History[Per-form History]
+  GS --> History[Per-form History]
   Analysis --> Generator[AI Generator]
   History --> Generator
   Generator --> Quality[Local Quality Checks]
@@ -88,18 +88,19 @@ For repeated submissions to the same form URL:
 `frontend/src/App.tsx` controls the app state machine:
 
 ```text
-setup → loading → review → submit
-setup → loading → result
+setup → scan config → confirm → generate progress → review submit → result
+setup → scan config → confirm → generate progress → result
 ```
 
 Important components:
 
 | Component | Role |
 |---|---|
-| `BatchSetupStep` | URL/count/mode input |
-| `LoadingStep` | Live SSE logs, provider badge, phase progress |
-| `ReviewSubmitStep` | Editable answers, warnings, animated submit progress |
-| `BatchResultStep` | Result stats, per-persona details, export actions |
+| `BatchSetupStep` | URL/count/mode input and scan readiness gating |
+| `ScanConfigStep` | Optional generation instructions and per-question custom answers |
+| `BatchProgressStep` | Reload-safe saved-session progress, editable review answers, and review submit action |
+| `LoadingOverlay` | Shared modal loading state over the current page |
+| `BatchResultStep` | Result stats, per-persona details, export actions for legacy flows |
 
 ## Real-time Updates
 

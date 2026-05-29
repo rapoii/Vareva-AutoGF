@@ -576,6 +576,20 @@ def batch_run(req: BatchRunRequest, request: Request, user: StoredUser = Depends
         except Exception as e:
             logger.warning("Iterasi %d: generate gagal: %s", i, e)
             iteration_result.error_message = f"Generate error: {e}"
+            log = storage.append_submission_log(
+                session_id=stored_session.id,
+                iteration=i,
+                answers=iteration_result.answers,
+                submit_status=iteration_result.submit_status,
+                error_message=iteration_result.error_message,
+                form_url=req.form_url,
+                persona_text=iteration_result.persona_text,
+                http_code=iteration_result.http_code,
+                tokens_used=iteration_result.tokens_used,
+                retries=iteration_result.retries,
+                user_id=user.id,
+            )
+            iteration_result.log_id = log.id
             results.append(iteration_result)
             fail_count += 1
             continue
@@ -615,23 +629,24 @@ def batch_run(req: BatchRunRequest, request: Request, user: StoredUser = Depends
 
         if iteration_result.submit_status == "success":
             storage.append_generated_persona_log(stored_session.id, req.form_url, persona, user_id=user.id)
-            log = storage.append_submission_log(
-                session_id=stored_session.id,
-                iteration=i,
-                answers=gen.answers,
-                submit_status=iteration_result.submit_status,
-                error_message=iteration_result.error_message,
-                form_url=req.form_url,
-                persona_text=iteration_result.persona_text,
-                http_code=iteration_result.http_code,
-                tokens_used=iteration_result.tokens_used,
-                retries=iteration_result.retries,
-                user_id=user.id,
-            )
-            iteration_result.log_id = log.id
             success_count += 1
-        else:
+        elif iteration_result.submit_status != "pending_review":
             fail_count += 1
+
+        log = storage.append_submission_log(
+            session_id=stored_session.id,
+            iteration=i,
+            answers=gen.answers,
+            submit_status=iteration_result.submit_status,
+            error_message=iteration_result.error_message,
+            form_url=req.form_url,
+            persona_text=iteration_result.persona_text,
+            http_code=iteration_result.http_code,
+            tokens_used=iteration_result.tokens_used,
+            retries=iteration_result.retries,
+            user_id=user.id,
+        )
+        iteration_result.log_id = log.id
 
         results.append(iteration_result)
 

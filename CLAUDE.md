@@ -28,6 +28,7 @@ Use this project responsibly. Do not add features that enable unauthorized spam,
 - `frontend/src/components/` — UI steps and reusable components
 - `frontend/src/components/ui/` — shadcn-style UI primitives
 - `frontend/src/lib/api.ts` — frontend API client and shared response types
+- `PRD.md` — product requirements, release scope, and acceptance criteria
 - `docs/ENVIRONMENT.md` — environment variable reference
 - `docs/GOOGLE_SHEETS_STORAGE.md` — Google Sheets storage setup
 - `scripts/google_apps_script/Code.gs.txt` — Apps Script storage backend; redeploy Web App after changes
@@ -78,6 +79,7 @@ For UI changes, start the backend and frontend, open the Vite app, and manually 
 - Keep the deployed Apps Script in sync with `scripts/google_apps_script/Code.gs.txt`.
 - After changing storage actions, redeploy the Apps Script Web App and update `GOOGLE_SHEETS_SCRIPT_URL` if the deployment URL changes.
 - Local development requires valid `GOOGLE_SHEETS_SCRIPT_URL` and `GOOGLE_SHEETS_SHARED_SECRET` for storage-backed flows.
+- `CORS_ORIGINS` defaults to localhost development origins; set it explicitly to the deployed frontend origin on Vercel/production.
 - Real Apps Script E2E tests are opt-in only via `RUN_LIVE_E2E=1`.
 - Auth uses bearer tokens signed by `AUTH_SECRET_KEY`.
 - Login has an in-memory per-email failed-password cooldown: 5 seconds after the first wrong password, then 10, 15, 20, etc. A successful login resets that email's cooldown back to the first-step behavior.

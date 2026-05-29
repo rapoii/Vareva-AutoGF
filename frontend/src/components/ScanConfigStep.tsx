@@ -35,8 +35,7 @@ export function ScanConfigStep({ scannedForm, config, onConfigChange, onResetCon
     onConfigChange({ ...config, [key]: value })
   }
 
-  function updateCustomAnswer(entryId: string, value: CustomAnswerValue) {
-    const nextAnswers = { ...config.custom_answers }
+  function setCustomAnswer(nextAnswers: Record<string, CustomAnswerValue>, entryId: string, value: CustomAnswerValue) {
     if (Array.isArray(value)) {
       if (value.length > 0) {
         nextAnswers[entryId] = value
@@ -48,6 +47,18 @@ export function ScanConfigStep({ scannedForm, config, onConfigChange, onResetCon
     } else {
       delete nextAnswers[entryId]
     }
+  }
+
+  function updateCustomAnswer(entryId: string, value: CustomAnswerValue) {
+    const nextAnswers = { ...config.custom_answers }
+    setCustomAnswer(nextAnswers, entryId, value)
+    onConfigChange({ ...config, custom_answers: nextAnswers })
+  }
+
+  function updateCustomAnswerAndClearOther(entryId: string, value: CustomAnswerValue) {
+    const nextAnswers = { ...config.custom_answers }
+    setCustomAnswer(nextAnswers, entryId, value)
+    delete nextAnswers[`${entryId}.other_option_response`]
     onConfigChange({ ...config, custom_answers: nextAnswers })
   }
 
@@ -111,6 +122,7 @@ export function ScanConfigStep({ scannedForm, config, onConfigChange, onResetCon
                   value={config.custom_answers[field.entry_id]}
                   otherValue={config.custom_answers[`${field.entry_id}.other_option_response`]}
                   onChange={(value) => updateCustomAnswer(field.entry_id, value)}
+                  onChangeAndClearOther={(value) => updateCustomAnswerAndClearOther(field.entry_id, value)}
                   onOtherChange={(value) => updateCustomAnswer(`${field.entry_id}.other_option_response`, value)}
                 />
                 {field.question_type === "LINEAR_SCALE" && (
@@ -209,14 +221,34 @@ function CustomAnswerControl({
   value,
   otherValue,
   onChange,
+  onChangeAndClearOther,
   onOtherChange,
 }: {
   field: FormField
   value?: CustomAnswerValue
   otherValue?: CustomAnswerValue
   onChange: (value: CustomAnswerValue) => void
+  onChangeAndClearOther: (value: CustomAnswerValue) => void
   onOtherChange: (value: CustomAnswerValue) => void
 }) {
+  function updateSingleChoice(option: string, selected: string) {
+    const nextValue = selected === option ? "" : option
+    if (selected === "Yang lain:" && nextValue !== "Yang lain:") {
+      onChangeAndClearOther(nextValue)
+      return
+    }
+    onChange(nextValue)
+  }
+
+  function updateCheckboxes(option: string, selected: string[]) {
+    const nextValue = selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option]
+    if (selected.includes("Yang lain:") && !nextValue.includes("Yang lain:")) {
+      onChangeAndClearOther(nextValue)
+      return
+    }
+    onChange(nextValue)
+  }
+
   if (field.question_type === "MULTIPLE_CHOICE" || field.question_type === "DROPDOWN" || field.question_type === "LINEAR_SCALE") {
     const selected = Array.isArray(value) ? "" : value ?? ""
     const otherText = Array.isArray(otherValue) ? otherValue.join(", ") : otherValue ?? ""
@@ -224,7 +256,7 @@ function CustomAnswerControl({
       <div className="mt-3 space-y-2">
         <div className="flex flex-wrap gap-1.5">
           {field.options.map((option) => (
-            <AnswerChip key={option} active={selected === option} onClick={() => onChange(selected === option ? "" : option)}>
+            <AnswerChip key={option} active={selected === option} onClick={() => updateSingleChoice(option, selected)}>
               {option}
             </AnswerChip>
           ))}
@@ -246,7 +278,7 @@ function CustomAnswerControl({
             <AnswerChip
               key={option}
               active={selected.includes(option)}
-              onClick={() => onChange(selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option])}
+              onClick={() => updateCheckboxes(option, selected)}
             >
               {option}
             </AnswerChip>
