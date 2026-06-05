@@ -222,12 +222,17 @@ def _process_one_iteration(storage: AppStorage, session_id: str, user_id: str) -
     answer_history = storage.load_answer_history(form_url, user_id=user_id)
     answer_history.extend(result.answers for result in current_status.results if result.answers)
     used_persona_names = storage.load_used_persona_names(form_url, user_id=user_id)
+
+    user_record = storage.get_user_by_id(user_id)
+    ai_settings_json = user_record.ai_settings_json if user_record else ""
+
     persona_objects, persona_provider = generate_persona_objects_with_provider(
         1,
         analysis=form_analysis,
         blocked_names=used_persona_names,
         persona_description=generation_config.persona_description,
         economic_class=generation_config.economic_class,
+        ai_settings_json=ai_settings_json,
     )
     persona = persona_objects[0]
     quality = validate_persona_quality(persona, form_analysis)
@@ -251,6 +256,7 @@ def _process_one_iteration(storage: AppStorage, session_id: str, user_id: str) -
             answer_history,
             answer_instructions=generation_config.answer_instructions,
             custom_answers=generation_config.custom_answers,
+            ai_settings_json=ai_settings_json,
         )
         answers = gen_resp.answers
         tokens_used = gen_resp.tokens_used
@@ -509,6 +515,9 @@ def batch_run(req: BatchRunRequest, request: Request, user: StoredUser = Depends
     used_persona_names = storage.load_used_persona_names(req.form_url, user_id=user.id)
     logger.info("Loaded %d previous answer sets and %d used persona names for this form", len(answer_history), len(used_persona_names))
 
+    user_record = storage.get_user_by_id(user.id)
+    ai_settings_json = user_record.ai_settings_json if user_record else ""
+
     # 2. Create session + save form schema record
     stored_session = storage.create_session(
         form_url=req.form_url,
@@ -528,6 +537,7 @@ def batch_run(req: BatchRunRequest, request: Request, user: StoredUser = Depends
             blocked_names=used_persona_names,
             persona_description=generation_config.persona_description,
             economic_class=generation_config.economic_class,
+            ai_settings_json=ai_settings_json,
         )
     except Exception as e:
         storage.update_session_result(stored_session.id, 0, req.count, status="failed")
@@ -558,6 +568,7 @@ def batch_run(req: BatchRunRequest, request: Request, user: StoredUser = Depends
                 answer_history,
                 answer_instructions=generation_config.answer_instructions,
                 custom_answers=generation_config.custom_answers,
+                ai_settings_json=ai_settings_json,
             )
             iteration_result.answers = gen.answers
             iteration_result.persona_text = _persona_summary(persona, gen.answers, form_schema)
@@ -708,7 +719,14 @@ def batch_run_stream(req: BatchRunRequest, user: StoredUser = Depends(get_curren
             "mode": "review" if req.skip_submit else "auto",
             "status": "running",
         })
-        yield _sse("log", {"phase": "generate", "message": "Processing saved session one request at a time."})
+
+        user_record = storage.get_user_by_id(user.id)
+        ai_settings_json = user_record.ai_settings_json if user_record else ""
+
+        if ai_settings_json:
+            yield _sse("log", {"phase": "generate", "message": "Memproses batch menggunakan custom AI provider..."})
+        else:
+            yield _sse("log", {"phase": "generate", "message": "Processing saved session one request at a time."})
 
         emitted_logs: set[str] = set()
         while True:

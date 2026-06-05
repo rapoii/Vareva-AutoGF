@@ -13,13 +13,19 @@ from app.schemas.auth import (
     ProfileHistoryResponse,
     RegisterRequest,
     UpdateProfileRequest,
+    UpdateAISettingsRequest,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 def _safe_user(user) -> AuthUser:
-    return AuthUser(id=user.id, name=user.name, email=user.email)
+    return AuthUser(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        ai_settings_json=getattr(user, "ai_settings_json", "")
+    )
 
 
 @router.post("/register", response_model=AuthResponse)
@@ -49,6 +55,10 @@ def login(req: LoginRequest):
 
 @router.get("/me", response_model=MeResponse)
 def me(user = Depends(get_current_user)):
+    storage = AppStorage()
+    db_user = storage.get_user_by_email(user.email)
+    if db_user:
+        return MeResponse(user=_safe_user(db_user))
     return MeResponse(user=_safe_user(user))
 
 
@@ -63,6 +73,19 @@ def update_profile(req: UpdateProfileRequest, user = Depends(get_current_user)):
     updated_user = storage.update_user_profile(user.id, req.name.strip(), email)
     token = create_access_token(updated_user)
     return AuthResponse(token=token, user=_safe_user(updated_user))
+
+
+@router.patch("/ai-settings", response_model=MeResponse)
+def update_ai_settings(req: UpdateAISettingsRequest, user = Depends(get_current_user)):
+    storage = AppStorage()
+    storage.update_user_ai_settings(user.id, req.ai_settings_json)
+
+    # Reload user to return updated info
+    updated_user = storage.get_user_by_email(user.email)
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User tidak ditemukan")
+
+    return MeResponse(user=_safe_user(updated_user))
 
 
 @router.post("/change-password", response_model=MeResponse)

@@ -1,7 +1,7 @@
 const SHARED_SECRET = 'PASTE_SECRET_YANG_SAMA_DENGAN_GOOGLE_SHEETS_SHARED_SECRET';
 
 const SHEETS = {
-  users: ['id', 'created_at', 'name', 'email', 'password_hash', 'last_login_at'],
+  users: ['id', 'created_at', 'name', 'email', 'password_hash', 'last_login_at', 'ai_settings_json'],
   sessions: ['id', 'created_at', 'user_id', 'form_url', 'form_title', 'count', 'success_count', 'fail_count', 'mode', 'status'],
   form_schemas: ['id', 'session_id', 'user_id', 'form_url', 'schema_json', 'created_at'],
   generation_configs: ['id', 'session_id', 'user_id', 'config_json', 'created_at'],
@@ -20,6 +20,7 @@ function doPost(e) {
     if (action === 'health_check') return jsonResponse({ ok: true, data: { status: 'ok' } });
     if (action === 'create_user') return withLock(() => jsonResponse({ ok: true, data: { user: createUser(payload) } }));
     if (action === 'get_user_by_email') return jsonResponse({ ok: true, data: { user: getUserByEmail(payload.email) } });
+    if (action === 'get_user_by_id') return jsonResponse({ ok: true, data: { user: getUserById(payload) } });
     if (action === 'update_user_last_login') return withLock(() => jsonResponse({ ok: true, data: updateUserLastLogin(payload) }));
     if (action === 'update_user_profile') return withLock(() => jsonResponse({ ok: true, data: { user: updateUserProfile(payload) } }));
     if (action === 'update_user_password') return withLock(() => jsonResponse({ ok: true, data: updateUserPassword(payload) }));
@@ -162,6 +163,7 @@ function createUser(payload) {
     email: email,
     password_hash: payload.password_hash || '',
     last_login_at: '',
+    ai_settings_json: payload.ai_settings_json || '',
   };
   appendObject('users', user);
   return user;
@@ -171,6 +173,12 @@ function getUserByEmail(email) {
   const normalized = String(email || '').trim().toLowerCase();
   if (!normalized) return null;
   return readObjects('users').find((user) => String(user.email || '').trim().toLowerCase() === normalized) || null;
+}
+
+function getUserById(payload) {
+  const userId = String(payload.user_id || '');
+  if (!userId) return null;
+  return readObjects('users').find((user) => String(user.id || '') === userId) || null;
 }
 
 function updateUserLastLogin(payload) {
@@ -195,6 +203,9 @@ function updateUserProfile(payload) {
   if (!row) throw new Error('User tidak ditemukan');
   setCellByHeader('users', row, 'name', name);
   setCellByHeader('users', row, 'email', email);
+  if (payload.ai_settings_json !== undefined) {
+    setCellByHeader('users', row, 'ai_settings_json', payload.ai_settings_json);
+  }
   return getUserByEmail(email);
 }
 

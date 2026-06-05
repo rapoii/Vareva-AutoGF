@@ -7,6 +7,7 @@ class AuthUser(CustomModel):
     id: str
     name: str
     email: str
+    ai_settings_json: str = ""
 
 
 class RegisterRequest(CustomModel):
@@ -37,6 +38,10 @@ class UpdateProfileRequest(CustomModel):
 class ChangePasswordRequest(CustomModel):
     current_password: str = Field(min_length=1, max_length=128)
     new_password: str = Field(min_length=6, max_length=128)
+
+
+class UpdateAISettingsRequest(CustomModel):
+    ai_settings_json: str
 
 
 class ProfileHistoryItem(CustomModel):

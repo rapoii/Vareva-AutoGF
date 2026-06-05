@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { ArrowLeft, KeyRound, Save, User } from "lucide-react"
+import { useState, useMemo } from "react"
+import { ArrowLeft, KeyRound, Save, User, Bot } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,18 +18,39 @@ export function ProfileStep({ user, onUserUpdated, onBack }: ProfileStepProps) {
   const [email, setEmail] = useState(user.email)
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
+  const initialSettings = useMemo(() => {
+    try {
+      return user.ai_settings_json ? JSON.parse(user.ai_settings_json) : {};
+    } catch {
+      return {};
+    }
+  }, [user.ai_settings_json]);
+
+  const [aiName, setAiName] = useState(initialSettings.name || "")
+  const [aiApiKey, setAiApiKey] = useState(initialSettings.api_key || "")
+  const [aiModel, setAiModel] = useState(initialSettings.model || "")
+  const [aiBaseUrl, setAiBaseUrl] = useState(initialSettings.base_url || "")
+
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
+  const [savingAiSettings, setSavingAiSettings] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const hasProfileChanges = name.trim() !== user.name || email.trim() !== user.email
+  const hasAiSettingsChanges =
+    aiName.trim() !== (initialSettings.name || "") ||
+    aiApiKey.trim() !== (initialSettings.api_key || "") ||
+    aiModel.trim() !== (initialSettings.model || "") ||
+    aiBaseUrl.trim() !== (initialSettings.base_url || "")
 
   const overlayMessage = savingProfile
     ? { title: "SIMPAN PROFILE", message: "Menyimpan perubahan nama dan email." }
     : savingPassword
       ? { title: "GANTI PASSWORD", message: "Memperbarui password akun." }
-      : null
+      : savingAiSettings
+        ? { title: "SIMPAN AI SETTINGS", message: "Memperbarui konfigurasi provider AI custom." }
+        : null
 
   async function handleSaveProfile() {
     if (!hasProfileChanges) return
@@ -60,6 +81,32 @@ export function ProfileStep({ user, onUserUpdated, onBack }: ProfileStepProps) {
       setError(e instanceof Error ? e.message : "Gagal mengganti password")
     } finally {
       setSavingPassword(false)
+    }
+  }
+
+  async function handleSaveAiSettings() {
+    if (!hasAiSettingsChanges) return
+    setSavingAiSettings(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const isAnyFieldFilled = aiName.trim() || aiApiKey.trim() || aiModel.trim() || aiBaseUrl.trim()
+      let settingsToSave = ""
+      if (isAnyFieldFilled) {
+         settingsToSave = JSON.stringify({
+            name: aiName.trim(),
+            api_key: aiApiKey.trim(),
+            model: aiModel.trim(),
+            base_url: aiBaseUrl.trim()
+         })
+      }
+      const result = await api.updateAISettings(settingsToSave)
+      onUserUpdated(result.user)
+      setMessage("AI Settings berhasil disimpan.")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal menyimpan AI Settings")
+    } finally {
+      setSavingAiSettings(false)
     }
   }
 
@@ -131,6 +178,44 @@ export function ProfileStep({ user, onUserUpdated, onBack }: ProfileStepProps) {
               <Button onClick={handleChangePassword} disabled={savingPassword || !currentPassword || newPassword.length < 6} className="w-full !shadow-[2px_2px_0_0_currentColor] hover:!shadow-[2px_2px_0_0_currentColor] disabled:!shadow-[2px_2px_0_0_currentColor]" size="lg">
                 <KeyRound className="w-5 h-5" strokeWidth={3} />
                 GANTI PASSWORD
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1">
+          <Card tone="white">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Bot className="w-5 h-5" strokeWidth={3} />
+                CUSTOM AI PROVIDER (OPSIONAL)
+              </CardTitle>
+              <CardDescription>
+                Bila dikosongkan, Vareva akan menggunakan provider bawaan sistem. Untuk Anthropic native, namakan dengan awalan "anthropic" dan kosongkan Base URL.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ai-name">Nama Provider</Label>
+                  <Input id="ai-name" value={aiName} onChange={(e) => setAiName(e.target.value)} disabled={savingAiSettings} placeholder="Misal: OpenRouter / Anthropic" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ai-model">Model ID</Label>
+                  <Input id="ai-model" value={aiModel} onChange={(e) => setAiModel(e.target.value)} disabled={savingAiSettings} placeholder="Misal: claude-3-5-sonnet-20241022" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ai-apikey">API Key</Label>
+                <Input id="ai-apikey" type="password" value={aiApiKey} onChange={(e) => setAiApiKey(e.target.value)} disabled={savingAiSettings} placeholder="sk-..." />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ai-baseurl">Base URL (Opsional)</Label>
+                <Input id="ai-baseurl" value={aiBaseUrl} onChange={(e) => setAiBaseUrl(e.target.value)} disabled={savingAiSettings} placeholder="Misal: https://openrouter.ai/api/v1" />
+              </div>
+              <Button onClick={handleSaveAiSettings} disabled={savingAiSettings || !hasAiSettingsChanges} className="w-full md:w-auto !shadow-[2px_2px_0_0_currentColor] hover:!shadow-[2px_2px_0_0_currentColor] disabled:!shadow-[2px_2px_0_0_currentColor]" size="lg">
+                <Save className="w-5 h-5" strokeWidth={3} />
+                SIMPAN AI SETTINGS
               </Button>
             </CardContent>
           </Card>

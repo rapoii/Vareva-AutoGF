@@ -10,6 +10,7 @@ class StoredUser:
     password_hash: str
     created_at: str = ""
     last_login_at: str = ""
+    ai_settings_json: str = ""
 
 
 @dataclass(frozen=True)

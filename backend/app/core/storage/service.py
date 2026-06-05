@@ -33,6 +33,22 @@ class AppStorage:
             password_hash=str(user.get("password_hash") or ""),
             created_at=str(user.get("created_at") or ""),
             last_login_at=str(user.get("last_login_at") or ""),
+            ai_settings_json=str(user.get("ai_settings_json") or ""),
+        )
+
+    def get_user_by_id(self, user_id: str) -> StoredUser | None:
+        data = self.sheets.call_action("get_user_by_id", {"user_id": user_id})
+        user = data.get("user")
+        if not isinstance(user, dict):
+            return None
+        return StoredUser(
+            id=_to_storage_id(user.get("id")),
+            name=str(user.get("name") or ""),
+            email=str(user.get("email") or ""),
+            password_hash=str(user.get("password_hash") or ""),
+            created_at=str(user.get("created_at") or ""),
+            last_login_at=str(user.get("last_login_at") or ""),
+            ai_settings_json=str(user.get("ai_settings_json") or ""),
         )
 
     def create_user(self, name: str, email: str, password_hash: str) -> StoredUser:
@@ -51,6 +67,7 @@ class AppStorage:
             password_hash=str(user.get("password_hash") or password_hash),
             created_at=str(user.get("created_at") or ""),
             last_login_at=str(user.get("last_login_at") or ""),
+            ai_settings_json=str(user.get("ai_settings_json") or ""),
         )
 
     def update_user_last_login(self, user_id: str) -> None:
@@ -71,7 +88,20 @@ class AppStorage:
             password_hash=str(user.get("password_hash") or ""),
             created_at=str(user.get("created_at") or ""),
             last_login_at=str(user.get("last_login_at") or ""),
+            ai_settings_json=str(user.get("ai_settings_json") or ""),
         )
+
+    def update_user_ai_settings(self, user_id: str, ai_settings_json: str) -> None:
+        user = self.get_user_by_id(user_id)
+        if not user:
+            return
+
+        self.sheets.call_action("update_user_profile", {
+            "user_id": user_id,
+            "name": user.name,
+            "email": user.email,
+            "ai_settings_json": ai_settings_json,
+        })
 
     def update_user_password(self, user_id: str, password_hash: str) -> None:
         self.sheets.call_action("update_user_password", {"user_id": user_id, "password_hash": password_hash})

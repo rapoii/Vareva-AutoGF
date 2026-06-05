@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any, Sequence
 
 from openai import OpenAI
+from anthropic import Anthropic
 
 from app.config import get_settings
 from app.schemas.form import FormSchema, FormAnalysis, QuestionType
@@ -23,8 +24,9 @@ logger = logging.getLogger(__name__)
 class AIProvider:
     name: str
     model: str
-    client: OpenAI
+    client: OpenAI | Anthropic
     fallback_models: tuple[str, ...] = ()
+    is_anthropic: bool = False
 
 
 def _short_text(value: str, limit: int = 120) -> str:
@@ -225,10 +227,38 @@ def _validate_answers(answers: dict[str, Any], schema: FormSchema) -> list[str]:
     return errors
 
 
-def _make_providers() -> list[AIProvider]:
-    """Return configured AI providers in retry priority order."""
+def _make_providers(ai_settings_json: str = "") -> list[AIProvider]:
+    """Return configured AI providers in retry priority order.
+    If ai_settings_json is provided and valid, use its custom provider.
+    Otherwise fall back to system settings."""
     settings = get_settings()
     providers: list[AIProvider] = []
+
+    if ai_settings_json:
+        try:
+            custom = json.loads(ai_settings_json)
+            if custom.get("api_key") and custom.get("model"):
+                is_anthropic = custom.get("name", "").lower().startswith("anthropic") and not custom.get("base_url")
+
+                if is_anthropic:
+                    client = Anthropic(api_key=custom["api_key"], base_url=custom.get("base_url") or None)
+                else:
+                    client_kwargs = {
+                        "api_key": custom["api_key"],
+                        "base_url": custom.get("base_url") or None
+                    }
+                    if custom.get("base_url"):
+                        client_kwargs["default_headers"] = {"Authorization": f"Bearer {custom['api_key']}"}
+                    client = OpenAI(**client_kwargs)
+
+                providers.append(AIProvider(
+                    name=custom.get("name", "Custom"),
+                    model=custom["model"],
+                    client=client,
+                    is_anthropic=is_anthropic
+                ))
+        except Exception as e:
+            logger.warning("Failed to parse custom ai_settings_json: %s", e)
 
     if settings.gemini_api_key:
         providers.append(AIProvider(
@@ -277,15 +307,30 @@ def _try_generate_personas(provider: AIProvider, n: int, prompt: str) -> tuple[l
         )
     else:
         logger.info("Trying persona generation with %s (%s)", provider.name, provider.model)
-    response = provider.client.chat.completions.create(  # type: ignore[call-overload]
-        model=provider.model,
-        messages=[{"role": "user", "content": prompt}],  # type: ignore[list-item]
-        response_format={"type": "json_object"},
-        temperature=1.1,
-        **_completion_extra_kwargs(provider),
-    )
-    raw = response.choices[0].message.content or "{}"
-    data = json.loads(raw)
+    if provider.is_anthropic:
+        # Note: on Claude 4+ temperature must not be passed alongside top_p. Using defaults is safest.
+        response = provider.client.messages.create(
+            model=provider.model,
+            max_tokens=8192,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = next((b.text for b in response.content if b.type == "text"), "{}")
+        # Anthropic sometimes wraps JSON in markdown blocks
+        if raw.strip().startswith("```json"):
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif raw.strip().startswith("```"):
+            raw = raw.split("```")[1].split("```")[0].strip()
+        data = json.loads(raw)
+    else:
+        response = provider.client.chat.completions.create(  # type: ignore[call-overload]
+            model=provider.model,
+            messages=[{"role": "user", "content": prompt}],  # type: ignore[list-item]
+            response_format={"type": "json_object"},
+            temperature=1.1,
+            **_completion_extra_kwargs(provider),
+        )
+        raw = response.choices[0].message.content or "{}"
+        data = json.loads(raw)
 
     raw_personas: list[dict] = data.get("personas") or data.get("persona") or []
     if isinstance(raw_personas, dict):
@@ -353,6 +398,7 @@ def generate_persona_objects(
     blocked_names: set[str] | None = None,
     persona_description: str = "",
     economic_class: str = "",
+    ai_settings_json: str = "",
 ) -> list[Persona]:
     """
     Generate n distinct, realistic Indonesian personas.
@@ -365,6 +411,7 @@ def generate_persona_objects(
         blocked_names=blocked_names,
         persona_description=persona_description,
         economic_class=economic_class,
+        ai_settings_json=ai_settings_json,
     )
     return personas
 
@@ -375,6 +422,7 @@ def generate_persona_objects_with_provider(
     blocked_names: set[str] | None = None,
     persona_description: str = "",
     economic_class: str = "",
+    ai_settings_json: str = "",
 ) -> tuple[list[Persona], str]:
     """Generate personas and return the provider name that succeeded."""
     context_block = ""
@@ -400,7 +448,7 @@ def generate_persona_objects_with_provider(
         economic_class=economic_class,
     )
 
-    providers = _make_providers()
+    providers = _make_providers(ai_settings_json)
     for provider in providers:
         try:
             return _try_generate_personas(provider, n, prompt)
@@ -432,13 +480,14 @@ def generate_answers_with_provider(
     answer_history: Sequence[dict[str, Any]] | None = None,
     answer_instructions: str = "",
     custom_answers: dict[str, str | list[str]] | None = None,
+    ai_settings_json: str = "",
 ) -> tuple[GenerateResponse, str]:
     """
     Generate form answers using AI providers in retry order.
     Returns (GenerateResponse, provider_name).
     """
     settings = get_settings()
-    providers = _make_providers()
+    providers = _make_providers(ai_settings_json)
 
     if not providers:
         raise ValueError("Tidak ada AI provider yang dikonfigurasi")
@@ -475,16 +524,40 @@ def generate_answers_with_provider(
 
             for attempt in range(settings.llm_max_retries + 1):
                 retries = attempt
-                response = provider.client.chat.completions.create(  # type: ignore[call-overload]
-                    model=provider.model,
-                    messages=messages,  # type: ignore[arg-type]
-                    response_format={"type": "json_object"},
-                    temperature=0.8,
-                    **_completion_extra_kwargs(provider),
-                )
+                if provider.is_anthropic:
+                    # Anthropic API format
+                    anthropic_messages = [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] != "system"]
+                    system_prompt_str = next((m["content"] for m in messages if m["role"] == "system"), "")
 
-                total_tokens += response.usage.total_tokens if response.usage else 0
-                raw_content = response.choices[0].message.content or "{}"
+                    response = provider.client.messages.create(
+                        model=provider.model,
+                        max_tokens=8192,
+                        system=system_prompt_str,
+                        messages=anthropic_messages,
+                    )
+                    total_tokens += (response.usage.input_tokens + response.usage.output_tokens) if response.usage else 0
+                    raw_content = next((b.text for b in response.content if b.type == "text"), "{}")
+                    
+                    if raw_content.strip().startswith("```json"):
+                        raw_content = raw_content.split("```json")[1].split("```")[0].strip()
+                    elif raw_content.strip().startswith("```"):
+                        raw_content = raw_content.split("```")[1].split("```")[0].strip()
+                else:
+                    response = provider.client.chat.completions.create(  # type: ignore[call-overload]
+                        model=provider.model,
+                        messages=messages,  # type: ignore[arg-type]
+                        response_format={"type": "json_object"},
+                        temperature=0.8,
+                        **_completion_extra_kwargs(provider),
+                    )
+
+                    total_tokens += response.usage.total_tokens if response.usage else 0
+                    raw_content = response.choices[0].message.content or "{}"
+
+                    if raw_content.strip().startswith("```json"):
+                        raw_content = raw_content.split("```json")[1].split("```")[0].strip()
+                    elif raw_content.strip().startswith("```"):
+                        raw_content = raw_content.split("```")[1].split("```")[0].strip()
 
                 try:
                     raw_answers: dict = json.loads(raw_content)
@@ -542,6 +615,7 @@ def generate_answers(
     answer_history: Sequence[dict[str, Any]] | None = None,
     answer_instructions: str = "",
     custom_answers: dict[str, str | list[str]] | None = None,
+    ai_settings_json: str = "",
 ) -> GenerateResponse:
     """Legacy wrapper for generating form answers without returning provider info."""
     resp, _provider_name = generate_answers_with_provider(
@@ -550,5 +624,6 @@ def generate_answers(
         answer_history,
         answer_instructions=answer_instructions,
         custom_answers=custom_answers,
+        ai_settings_json=ai_settings_json,
     )
     return resp

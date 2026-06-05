@@ -103,6 +103,7 @@ export interface AuthUser {
   id: string
   name: string
   email: string
+  ai_settings_json?: string
 }
 
 export interface AuthResponse {
@@ -247,6 +248,13 @@ export const api = {
     })
     setAuthToken(result.token)
     return result
+  },
+
+  async updateAISettings(ai_settings_json: string): Promise<{ user: AuthUser }> {
+    return requestJson<{ user: AuthUser }>("/api/auth/ai-settings", {
+      method: "PATCH",
+      body: JSON.stringify({ ai_settings_json }),
+    })
   },
 
   async changePassword(current_password: string, new_password: string): Promise<void> {

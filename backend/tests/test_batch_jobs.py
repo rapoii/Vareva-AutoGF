@@ -160,7 +160,8 @@ def test_run_stream_starts_background_job_and_completes_from_storage(monkeypatch
             user_id=user_id,
         )
         storage.update_session_result(started_session_id, 1, 0, status="completed")
-        return __import__("app.routes.batch", fromlist=["_status_from_storage"])._status_from_storage(storage, started_session_id, user_id)
+        from app.routes.batch import _status_from_storage
+        return _status_from_storage(storage, started_session_id, user_id)
 
     monkeypatch.setattr("app.routes.batch._process_one_iteration", fake_process_one_iteration)
 
