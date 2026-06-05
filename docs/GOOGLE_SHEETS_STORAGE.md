@@ -24,7 +24,7 @@ The backend is Google Sheets-only; there is no SQLite or local database fallback
 ### users
 
 ```text
-id | created_at | name | email | password_hash | last_login_at
+id | created_at | name | email | password_hash | last_login_at | ai_settings_json
 ```
 
 ### sessions

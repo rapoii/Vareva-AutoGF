@@ -30,6 +30,7 @@ It is designed around three goals:
 
 ### AI generation
 
+- Custom BYO (Bring-Your-Own) Provider support for OpenRouter, Anthropic, and local endpoints.
 - Multi-provider AI fallback chain: Gemini → Groq → Cerebras → OpenRouter → static fallback.
 - Context-aware persona generation from parsed form topic and target audience.
 - Compact prompts to reduce token usage without removing features.
